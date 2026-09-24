@@ -424,82 +424,124 @@ function renderMobileScreenshot() {
   const height = 1560;
   const canvas = new Canvas(width, height, rgba([4, 13, 33], 1));
   const pad = 40;
+  const contentWidth = width - pad * 2;
 
-  // Status bar + app header
+  // Status bar
   drawText(canvas, { x: pad, y: 34, text: '9:41', scale: 3, colour: SLATE });
   canvas.paint(circle(width - pad - 12, 46, 9), () => rgba(SLATE, 0.9), { samples: 3 });
   canvas.paint(circle(width - pad - 48, 46, 9), () => rgba(SLATE, 0.55), { samples: 3 });
 
-  drawMark(canvas, { x: pad, y: 96, size: 64, detailed: false });
-  drawText(canvas, { x: pad + 84, y: 102, text: 'SURAKSHA', scale: 5, colour: WHITE, tracking: 2 });
-  drawText(canvas, { x: pad + 84, y: 138, text: 'YOUR SAFETY, OUR PRIORITY', scale: 2, colour: TEAL_LIGHT, tracking: 1 });
+  // App header
+  drawMark(canvas, { x: pad, y: 92, size: 60, detailed: false });
+  drawText(canvas, { x: pad + 78, y: 96, text: 'SURAKSHA', scale: 4.6, colour: WHITE, tracking: 2 });
+  drawText(canvas, { x: pad + 78, y: 134, text: 'YOUR SAFETY, OUR PRIORITY', scale: 1.8, colour: TEAL_LIGHT });
 
-  // Connectivity + GPS tile row
-  const tileY = 190;
-  const tileWidth = (width - pad * 3) / 2;
-  tintedCard(canvas, { x: pad, y: tileY, width: tileWidth, height: 132 });
-  tintedCard(canvas, { x: pad * 2 + tileWidth, y: tileY, width: tileWidth, height: 132 });
-  drawText(canvas, { x: pad + 22, y: tileY + 26, text: 'OFFLINE READY', scale: 2, colour: TEAL_LIGHT });
-  drawText(canvas, { x: pad + 22, y: tileY + 60, text: 'CACHED', scale: 4, colour: WHITE });
-  canvas.paint(circle(pad + 34, tileY + 106, 9), () => rgba(EMERALD, 1), { samples: 3 });
-  drawText(canvas, { x: pad + 54, y: tileY + 98, text: 'NO INTERNET NEEDED', scale: 2, colour: SLATE });
+  // Connectivity + GPS tiles
+  const tileY = 186;
+  const tileHeight = 140;
+  const tileWidth = (contentWidth - 24) / 2;
+  tintedCard(canvas, { x: pad, y: tileY, width: tileWidth, height: tileHeight, radius: 20 });
+  tintedCard(canvas, { x: pad + tileWidth + 24, y: tileY, width: tileWidth, height: tileHeight, radius: 20 });
 
-  const rightX = pad * 2 + tileWidth;
-  drawText(canvas, { x: rightX + 22, y: tileY + 26, text: 'GPS FIX', scale: 2, colour: TEAL_LIGHT });
-  drawText(canvas, { x: rightX + 22, y: tileY + 60, text: '12 M', scale: 4, colour: WHITE });
-  canvas.paint(ring(rightX + 34, tileY + 106, 4, 9), () => rgba(EMERALD, 1), { samples: 3 });
-  drawText(canvas, { x: rightX + 54, y: tileY + 98, text: 'ACCURATE', scale: 2, colour: SLATE });
+  drawText(canvas, { x: pad + 22, y: tileY + 24, text: 'CONNECTIVITY', scale: 1.8, colour: SLATE });
+  drawText(canvas, { x: pad + 22, y: tileY + 54, text: 'OFFLINE', scale: 3.6, colour: WHITE });
+  canvas.paint(circle(pad + 30, tileY + 108, 7), () => rgba(EMERALD, 1), { samples: 3 });
+  drawText(canvas, { x: pad + 46, y: tileY + 101, text: 'QUEUE HELD LOCALLY', scale: 1.6, colour: SLATE });
 
-  // Active journey card with a route strip
-  const journeyY = tileY + 168;
-  tintedCard(canvas, { x: pad, y: journeyY, width: width - pad * 2, height: 430 });
-  drawText(canvas, { x: pad + 24, y: journeyY + 26, text: 'ACTIVE JOURNEY', scale: 2, colour: TEAL_LIGHT });
-  drawText(canvas, { x: pad + 24, y: journeyY + 58, text: 'MG ROAD - HEBBAL', scale: 4, colour: WHITE });
-  drawText(canvas, { x: pad + 24, y: journeyY + 100, text: 'ETA 22:40  -  6 KM LEFT', scale: 2, colour: SLATE });
+  const rightX = pad + tileWidth + 24;
+  drawText(canvas, { x: rightX + 22, y: tileY + 24, text: 'GPS FIX', scale: 1.8, colour: SLATE });
+  drawText(canvas, { x: rightX + 22, y: tileY + 54, text: '12 M', scale: 3.6, colour: WHITE });
+  canvas.paint(ring(rightX + 30, tileY + 108, 3, 7.5), () => rgba(EMERALD, 1), { samples: 3 });
+  drawText(canvas, { x: rightX + 46, y: tileY + 101, text: 'ACCURATE', scale: 1.6, colour: SLATE });
 
-  // Route strip: corridor, progress, checkpoint markers
-  const stripY = journeyY + 170;
-  canvas.paint(roundRect(pad + 24, stripY, width - pad * 2 - 48, 120, 18), () => rgba([8, 24, 54], 1), { samples: 2 });
+  // Active journey card
+  const journeyY = tileY + tileHeight + 26;
+  const journeyHeight = 404;
+  tintedCard(canvas, { x: pad, y: journeyY, width: contentWidth, height: journeyHeight, radius: 22 });
+  drawText(canvas, { x: pad + 26, y: journeyY + 26, text: 'ACTIVE JOURNEY', scale: 1.8, colour: TEAL_LIGHT });
+  drawText(canvas, { x: pad + 26, y: journeyY + 56, text: 'MG ROAD - HEBBAL', scale: 3.6, colour: WHITE });
+  drawText(canvas, { x: pad + 26, y: journeyY + 100, text: 'ETA 22:40  -  6 KM LEFT', scale: 1.8, colour: SLATE });
+
+  // Route strip
+  const stripY = journeyY + 140;
+  const stripHeight = 132;
+  canvas.paint(roundRect(pad + 22, stripY, contentWidth - 44, stripHeight, 18), () => rgba([8, 24, 54], 1), { samples: 2 });
   const route = [
-    [pad + 64, stripY + 82],
-    [pad + 150, stripY + 46],
-    [pad + 250, stripY + 60],
-    [pad + 360, stripY + 34],
-    [pad + 470, stripY + 48],
-    [pad + 580, stripY + 30],
+    [pad + 66, stripY + 88],
+    [pad + 156, stripY + 52],
+    [pad + 252, stripY + 68],
+    [pad + 352, stripY + 40],
+    [pad + 456, stripY + 56],
+    [pad + 566, stripY + 34],
   ];
   for (let i = 1; i < route.length; i += 1) {
-    const complete = i <= 3;
+    const complete = i <= 2;
     canvas.paint(capsule(route[i - 1][0], route[i - 1][1], route[i][0], route[i][1], 8), () => rgba(complete ? EMERALD : SLATE, complete ? 1 : 0.35), { samples: 3 });
   }
-  canvas.paint(circle(route[0][0], route[0][1], 13), () => rgba(WHITE, 1), { samples: 3 });
+  canvas.paint(circle(route[0][0], route[0][1], 12), () => rgba(WHITE, 1), { samples: 3 });
+  canvas.paint(circle(route[2][0], route[2][1], 10), () => rgba(EMERALD, 1), { samples: 3 });
   canvas.paint(circle(route[3][0], route[3][1], 11), () => rgba(AMBER, 1), { samples: 3 });
-  canvas.paint(ring(route[3][0], route[3][1], 11, 18), () => rgba(AMBER, 0.35), { samples: 2 });
-  canvas.paint(circle(route[route.length - 1][0], route[route.length - 1][1], 13), () => rgba(RED, 1), { samples: 3 });
+  canvas.paint(ring(route[3][0], route[3][1], 11, 19), () => rgba(AMBER, 0.3), { samples: 2 });
+  canvas.paint(circle(route[route.length - 1][0], route[route.length - 1][1], 12), () => rgba(RED, 1), { samples: 3 });
 
-  drawText(canvas, { x: pad + 24, y: stripY + 140, text: 'CHECKPOINT 1 MET - NEXT IN 8 MIN', scale: 2, colour: EMERALD });
-  drawText(canvas, { x: pad + 24, y: stripY + 166, text: 'RISK 10 - LOW (HEURISTIC)', scale: 2, colour: SLATE });
+  drawText(canvas, { x: pad + 26, y: stripY + 158, text: 'CHECKPOINT 1 MET - NEXT IN 8 MIN', scale: 1.8, colour: EMERALD });
+  drawText(canvas, { x: pad + 26, y: stripY + 186, text: 'RISK 10 - LOW (HEURISTIC INDICATOR)', scale: 1.8, colour: SLATE });
 
-  // SOS button
-  const sosY = journeyY + 372;
-  canvas.paint(circle(width / 2, sosY + 20, 74), () => rgba(RED, 1), { samples: 4 });
-  canvas.paint(ring(width / 2, sosY + 20, 74, 82), () => rgba(RED, 0.25), { samples: 3 });
-  drawText(canvas, { x: width / 2 - textWidth('SOS', 7, 2) / 2, y: sosY - 8, text: 'SOS', scale: 7, colour: WHITE, tracking: 2 });
-  drawText(canvas, { x: width / 2 - textWidth('HOLD 1.5 S - SILENT MODE AVAILABLE', 2, 1) / 2, y: sosY + 112, text: 'HOLD 1.5 S - SILENT MODE AVAILABLE', scale: 2, colour: SLATE });
+  // SOS control, given its own band so nothing is covered
+  const sosBandY = journeyY + journeyHeight + 34;
+  const sosCentreY = sosBandY + 96;
+  canvas.paint(circle(width / 2, sosCentreY, 96), () => rgba(RED, 0.14), { samples: 3 });
+  canvas.paint(circle(width / 2, sosCentreY, 74), () => rgba(RED, 1), { samples: 4 });
+  drawText(canvas, { x: width / 2 - textWidth('SOS', 8, 2) / 2, y: sosCentreY - 28, text: 'SOS', scale: 8, colour: WHITE, tracking: 2 });
+  drawText(canvas, {
+    x: width / 2 - textWidth('HOLD 1.5 S - SILENT MODE', 1.8, 1) / 2,
+    y: sosCentreY + 108,
+    text: 'HOLD 1.5 S - SILENT MODE',
+    scale: 1.8,
+    colour: SLATE,
+  });
+
+  // Quick actions fill the remaining space with real destinations
+  const actionsY = sosCentreY + 156;
+  const actions = [
+    ['REPORT', 'NEW INCIDENT'],
+    ['CONTACTS', '3 TRUSTED'],
+    ['COMMUNITY', 'NEARBY'],
+    ['TIMELINE', 'ALL EVENTS'],
+  ];
+  const actionWidth = (contentWidth - 24) / 2;
+  actions.forEach(([title, detail], index) => {
+    const column = index % 2;
+    const row = Math.floor(index / 2);
+    const x = pad + column * (actionWidth + 24);
+    const y = actionsY + row * 128;
+    tintedCard(canvas, { x, y, width: actionWidth, height: 112, radius: 20 });
+    canvas.paint(roundRect(x + 22, y + 24, 26, 26, 8), () => rgba(TEAL, 0.9), { samples: 2 });
+    drawText(canvas, { x: x + 22, y: y + 64, text: title, scale: 2.4, colour: WHITE });
+    drawText(canvas, { x: x + 22, y: y + 90, text: detail, scale: 1.6, colour: SLATE });
+  });
+
+  // Honesty strip: the product never implies that offline monitoring guarantees
+  // rescue, and the marketing asset does not either.
+  const noteY = actionsY + 2 * 128 + 6;
+  canvas.paint(roundRect(pad, noteY, contentWidth, 74, 18), () => rgba(AMBER, 0.12), { samples: 2 });
+  canvas.paint(roundRect(pad + 18, noteY + 30, 14, 14, 4), () => rgba(AMBER, 1), { samples: 2 });
+  drawText(canvas, { x: pad + 44, y: noteY + 20, text: 'BEST EFFORT, NOT A GUARANTEE', scale: 1.8, colour: AMBER });
+  drawText(canvas, { x: pad + 44, y: noteY + 44, text: 'OFFLINE MONITORING CANNOT SUMMON HELP BY ITSELF', scale: 1.5, colour: SLATE });
 
   // Bottom navigation
   const navY = height - 118;
-  canvas.paint(roundRect(pad, navY, width - pad * 2, 96, 28), () => rgba(NAVY_CARD, 1), { samples: 2 });
+  canvas.paint(roundRect(pad, navY, contentWidth, 96, 28), () => rgba(NAVY_CARD, 1), { samples: 2 });
   const labels = ['HOME', 'JOURNEYS', 'REPORT', 'INBOX', 'SETTINGS'];
   labels.forEach((label, index) => {
-    const slot = (width - pad * 2) / labels.length;
+    const slot = contentWidth / labels.length;
     const cx = pad + slot * index + slot / 2;
     canvas.paint(roundRect(cx - 16, navY + 22, 32, 26, 8), () => rgba(index === 0 ? TEAL : SLATE, index === 0 ? 1 : 0.5), { samples: 2 });
     drawText(canvas, {
-      x: cx - textWidth(label, 2, 1) / 2,
+      x: cx - textWidth(label, 1.8, 1) / 2,
       y: navY + 60,
       text: label,
-      scale: 2,
+      scale: 1.8,
       colour: index === 0 ? TEAL_LIGHT : SLATE,
     });
   });
@@ -616,16 +658,17 @@ function write(relativePath, data) {
   console.log(`  ${relativePath.padEnd(38)} ${(size / 1024).toFixed(1)} kB`);
 }
 
+const filters = process.argv.slice(2);
+const wanted = (relativePath) => filters.length === 0 || filters.some((filter) => relativePath.includes(filter));
+
 console.log('SURAKSHA — generating brand assets into apps/web/public');
 
-write(join('icons', 'logo.svg'), LOGO_SVG);
+if (wanted('icons/logo.svg')) write(join('icons', 'logo.svg'), LOGO_SVG);
 for (const size of [192, 512]) {
-  write(join('icons', `icon-${size}.png`), encodePng(renderIcon(size)));
+  if (wanted(`icons/icon-${size}.png`)) write(join('icons', `icon-${size}.png`), encodePng(renderIcon(size)));
+  if (wanted(`icons/maskable-${size}.png`)) write(join('icons', `maskable-${size}.png`), encodePng(renderIcon(size, { maskable: true })));
 }
-for (const size of [192, 512]) {
-  write(join('icons', `maskable-${size}.png`), encodePng(renderIcon(size, { maskable: true })));
-}
-write(join('screenshots', 'home-mobile.png'), encodePng(renderMobileScreenshot()));
-write(join('screenshots', 'home-desktop.png'), encodePng(renderDesktopScreenshot()));
+if (wanted('screenshots/home-mobile.png')) write(join('screenshots', 'home-mobile.png'), encodePng(renderMobileScreenshot()));
+if (wanted('screenshots/home-desktop.png')) write(join('screenshots', 'home-desktop.png'), encodePng(renderDesktopScreenshot()));
 
-console.log('Done. These files are referenced by vite.config.ts and the web manifest.');
+console.log(filters.length ? 'Done (filtered).' : 'Done. These files are referenced by vite.config.ts and the web manifest.');
