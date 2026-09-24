@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Offline · SURAKSHA</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --navy: #061530;
+        --teal: #2dd4bf;
+        --red: #ef4444;
+        --muted: #93a4c4;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100dvh;
+        display: grid;
+        place-items: center;
+        background: radial-gradient(circle at 20% 10%, #0a1f44, #061530 60%);
+        color: #eaf1fb;
+        font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+        padding: 1.5rem;
+      }
+      .card {
+        max-width: 30rem;
+        border: 1px solid rgba(148, 179, 226, 0.25);
+        border-radius: 1.5rem;
+        background: rgba(10, 31, 68, 0.7);
+        padding: 1.75rem;
+        backdrop-filter: blur(8px);
+      }
+      svg {
+        width: 64px;
+        height: 64px;
+      }
+      h1 {
+        font-size: 1.35rem;
+        margin: 1rem 0 0.35rem;
+      }
+      p {
+        color: var(--muted);
+        line-height: 1.6;
+        font-size: 0.95rem;
+      }
+      ul {
+        color: var(--muted);
+        font-size: 0.9rem;
+        line-height: 1.7;
+        padding-left: 1.1rem;
+      }
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.6rem;
+        margin-top: 1.25rem;
+      }
+      a.button {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.7rem 1rem;
+        border-radius: 0.75rem;
+        text-decoration: none;
+        font-weight: 600;
+        font-size: 0.9rem;
+      }
+      a.primary {
+        background: var(--teal);
+        color: #04201d;
+      }
+      a.danger {
+        background: var(--red);
+        color: #fff;
+      }
+      a.ghost {
+        border: 1px solid rgba(148, 179, 226, 0.35);
+        color: #eaf1fb;
+      }
+      .note {
+        margin-top: 1.25rem;
+        font-size: 0.78rem;
+        color: var(--muted);
+        border-top: 1px solid rgba(148, 179, 226, 0.2);
+        padding-top: 0.9rem;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <svg viewBox="0 0 96 96" aria-hidden="true">
+        <defs>
+          <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#0A1F44" />
+            <stop offset="60%" stop-color="#0D9488" />
+            <stop offset="100%" stop-color="#0F766E" />
+          </linearGradient>
+        </defs>
+        <path
+          d="M48 6 14 19v30c0 20.4 14.2 37.7 34 43 19.8-5.3 34-22.6 34-43V19L48 6Z"
+          fill="url(#g)"
+        />
+        <path
+          d="M31 48.5 43 60.5 65 38"
+          fill="none"
+          stroke="#fff"
+          stroke-width="7"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+      </svg>
+      <h1>SURAKSHA could not load the app shell</h1>
+      <p>
+        This page appears when the app has not finished caching itself yet. Your data on this device
+        is safe — nothing has been lost.
+      </p>
+      <ul>
+        <li>Reconnect once to let the app cache its interface and your routes.</li>
+        <li>After that, SURAKSHA opens and runs fully offline.</li>
+      </ul>
+      <div class="actions">
+        <a class="button primary" href="/">Try again</a>
+        <a class="button danger" href="tel:112">Call emergency services</a>
+        <a class="button ghost" href="/app/sos">SOS screen</a>
+      </div>
+      <p class="note">
+        SURAKSHA cannot contact emergency services on your behalf. If you are in danger, call your
+        local emergency number directly.
+      </p>
+    </main>
+  </body>
+</html>

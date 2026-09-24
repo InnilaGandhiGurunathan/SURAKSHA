@@ -1,0 +1,57 @@
+# SURAKSHA — repository hygiene
+#
+# Nothing generated, downloaded or device-local belongs in the repository. The
+# parts of the app that must ship (source, SQL, docs) are tracked; everything
+# else is reproducible from `npm ci` and `npm run assets`.
+
+# Dependencies
+node_modules/
+.npm/
+.pnpm-store/
+
+# Build output
+dist/
+build/
+out/
+*.tsbuildinfo
+apps/web/dev-dist/
+apps/web/dist/
+apps/server/dist/
+packages/*/dist/
+
+# Local runtime data — the reporting server's JSON store and SMS/report spool.
+# These files contain real incident reports and must never be committed.
+apps/server/var/
+apps/server/*.log
+*.sqlite
+*.sqlite3
+
+# Environment / secrets (see .env.example for the tracked template)
+.env
+.env.*
+!.env.example
+apps/web/.env
+apps/web/.env.*
+!apps/web/.env.example
+apps/server/.env
+apps/server/.env.*
+!apps/server/.env.example
+*.pem
+*.key
+
+# Test + tooling output
+coverage/
+.vitest/
+test-results/
+playwright-report/
+.vercel/
+.turbo/
+.cache/
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/*
+!.vscode/extensions.json

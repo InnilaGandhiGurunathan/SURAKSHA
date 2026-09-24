@@ -1,0 +1,42 @@
+{
+  "name": "suraksha",
+  "private": true,
+  "version": "1.0.0",
+  "description": "SURAKSHA – Your Safety, Our Priority. Offline-first personal safety PWA.",
+  "license": "MIT",
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=20.19"
+  },
+  "scripts": {
+    "dev": "npm run dev --workspace @suraksha/server & npm run dev --workspace @suraksha/web",
+    "dev:web": "npm run dev --workspace @suraksha/web",
+    "dev:server": "npm run dev --workspace @suraksha/server",
+    "build": "npm run build --workspace @suraksha/shared && npm run build --workspace @suraksha/risk-engine && npm run build --workspace @suraksha/web && npm run build --workspace @suraksha/server",
+    "build:web": "npm run build --workspace @suraksha/web",
+    "build:server": "npm run build --workspace @suraksha/server",
+    "start": "node apps/server/dist/index.js",
+    "preview": "npm run build:web && npm run build:server && npm start",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ui": "vitest run --reporter=verbose",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "echo \"(eslint optional) configure eslint.config.js for stricter checks\"",
+    "db:reset": "node scripts/reset-demo-db.mjs"
+  },
+  "devDependencies": {
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.1.0",
+    "@testing-library/user-event": "^14.5.2",
+    "@types/node": "^22.10.2",
+    "fake-indexeddb": "^6.0.0",
+    "jsdom": "^25.0.1",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}
