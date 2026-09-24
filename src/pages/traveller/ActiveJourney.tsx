@@ -42,7 +42,7 @@ import { EventTimeline } from '@/components/domain/EventTimeline';
 import { RiskBandLadder, RiskWhyPanel } from '@/components/domain/RiskWhyPanel';
 import { HelpPanel } from '@/components/domain/HelpPanel';
 import { useAppState, useCircle, store } from '@/store/hooks';
-import { formatClock, formatCountdown, formatDurationMinutes, formatRelative } from '@/lib/format';
+import { formatClock, formatCountdown, formatDurationMinutes, formatRelative, pluralise} from '@/lib/format';
 import { linkQuality, estimatedArrivalAt, remainingMinutes } from '@/domain/journey';
 import { cn } from '@/lib/cn';
 
@@ -165,7 +165,7 @@ export function ActiveJourney() {
                   value={journey.deviationActive ? 'Deviation' : 'On route'}
                   hint={
                     journey.deviationCount
-                      ? `${journey.deviationCount} deviation(s) this journey`
+                      ? `${pluralise(journey.deviationCount, 'deviation')} this journey`
                       : 'Inside the expected corridor'
                   }
                 />

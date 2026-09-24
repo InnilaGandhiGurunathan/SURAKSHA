@@ -35,7 +35,7 @@ import { JourneyMap } from '@/components/map/JourneyMap';
 import { EventTimeline } from '@/components/domain/EventTimeline';
 import { RiskBandLadder, RiskWhyPanel } from '@/components/domain/RiskWhyPanel';
 import { useAppState, useCircle, store } from '@/store/hooks';
-import { formatClock, formatCountdown, formatDurationMinutes, formatRelative } from '@/lib/format';
+import { formatClock, formatCountdown, formatDurationMinutes, formatRelative, pluralise} from '@/lib/format';
 import { estimatedArrivalAt, linkQuality, remainingMinutes } from '@/domain/journey';
 import { guardianActionFor } from '@/domain/riskEngine';
 import { toneForBand, TONES } from '@/lib/status';
@@ -205,7 +205,7 @@ export function GuardianDashboard() {
                   <Kpi
                     label="Route"
                     value={active.deviationActive ? 'Off route' : 'On route'}
-                    hint={active.deviationCount ? `${active.deviationCount} deviation(s)` : 'In corridor'}
+                    hint={active.deviationCount ? pluralise(active.deviationCount, 'deviation') : 'In corridor'}
                   />
                   <Kpi
                     label="Check-ins"

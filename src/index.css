@@ -75,28 +75,6 @@
   .sr-scroll::-webkit-scrollbar-track {
     background: transparent;
   }
-
-  .sr-grid-fade {
-    mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
-  }
-
-  /* Map surface — calm, light, OpenStreetMap-like without external tiles. */
-  .sr-map {
-    background-color: #eef1f5;
-    background-image:
-      radial-gradient(circle at 18% 22%, rgba(18, 183, 106, 0.07), transparent 42%),
-      radial-gradient(circle at 82% 78%, rgba(68, 104, 240, 0.07), transparent 46%);
-  }
-
-  .sr-safe-stripe {
-    background-image: repeating-linear-gradient(
-      135deg,
-      rgba(255, 255, 255, 0.22) 0px,
-      rgba(255, 255, 255, 0.22) 10px,
-      transparent 10px,
-      transparent 20px
-    );
-  }
 }
 
 @layer utilities {

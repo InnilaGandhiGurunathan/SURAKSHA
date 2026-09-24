@@ -27,6 +27,23 @@ function ScrollToTop() {
   return null;
 }
 
+/**
+ * Keeps the active role in step with the URL.
+ *
+ * The demo switcher is the normal way to change role, but a deep link or a
+ * refresh on a `/guardian/...` page must not render guardian content under the
+ * traveller navigation.
+ */
+function RoleFromRoute() {
+  const { pathname } = useLocation();
+  const { role } = useAppState();
+  useEffect(() => {
+    const wanted = pathname.startsWith('/guardian') ? 'guardian' : pathname.startsWith('/traveller') ? 'traveller' : role;
+    if (wanted !== role) store.setRole(wanted);
+  }, [pathname, role]);
+  return null;
+}
+
 export function App() {
   const { role, ready } = useAppState();
 
@@ -46,6 +63,7 @@ export function App() {
   return (
     <BrowserRouter>
       <ScrollToTop />
+      <RoleFromRoute />
       <AppShell>
         <Routes>
           <Route path="/" element={<Navigate to={role === 'guardian' ? '/guardian' : '/traveller'} replace />} />

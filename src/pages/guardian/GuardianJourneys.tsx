@@ -25,7 +25,7 @@ import { JourneyMap } from '@/components/map/JourneyMap';
 import { EventTimeline } from '@/components/domain/EventTimeline';
 import { RiskWhyPanel } from '@/components/domain/RiskWhyPanel';
 import { useAppState, useCircle, store } from '@/store/hooks';
-import { formatClock, formatDurationMinutes, formatRelative } from '@/lib/format';
+import { formatClock, formatDurationMinutes, formatRelative, pluralise} from '@/lib/format';
 import { linkQuality, remainingMinutes } from '@/domain/journey';
 
 export function GuardianJourneys() {
@@ -164,7 +164,7 @@ function JourneyDetail() {
             <CardBody className="grid grid-cols-2 gap-3">
               <Fact label="ETA" value={formatDurationMinutes(remainingMinutes(journey, now))} hint={formatClock(journey.expectedArrivalAt)} />
               <Fact label="Check-in" value={journey.checkIn.state} hint={journey.checkIn.dueAt ? formatClock(journey.checkIn.dueAt) : '—'} />
-              <Fact label="Route" value={journey.deviationActive ? 'Off route' : 'On route'} hint={`${journey.deviationCount} deviation(s)`} />
+              <Fact label="Route" value={journey.deviationActive ? 'Off route' : 'On route'} hint={pluralise(journey.deviationCount, 'deviation')} />
               <Fact
                 label="Escalation"
                 value={journey.escalationLevel > 0 ? `Level ${journey.escalationLevel}` : 'None'}
