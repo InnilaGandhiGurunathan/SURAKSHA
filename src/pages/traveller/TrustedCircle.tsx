@@ -47,7 +47,7 @@ export function TrustedCircle() {
       <PageHeader
         eyebrow="Traveller · People you trust"
         title="Trusted Circle"
-        description="Two people who will actually pick up, and a clear order for escalation. SURAKSHA notifies these contacts — it never contacts emergency services for you."
+        description="Two people who will actually pick up, and a clear order for escalation. SURAKSHA notifies these contacts — it never dials emergency services for you."
         actions={
           <Button size="sm" icon={<Plus size={15} />} onClick={() => setCreating(true)}>
             Add contact

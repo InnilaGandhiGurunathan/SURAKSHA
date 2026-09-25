@@ -52,14 +52,21 @@ export async function createEvidenceRecord(input: {
   buffer: ArrayBuffer;
   kind: EvidenceRecord['kind'];
   description: string;
+  /**
+   * When the evidence was captured, on the *simulator's* clock. Required rather
+   * than defaulted: this used to be `Date.now()`, so a file added during a demo
+   * journey was stamped with the wall clock and rendered as "Added 08:19" next
+   * to an incident created at 22:42.
+   */
+  at: number;
 }): Promise<EvidenceRecord> {
   const { hash, method } = await hashBuffer(input.buffer);
   return {
-    id: `ev-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
+    id: `ev-${input.at.toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
     fileName: input.fileName,
     mimeType: input.mimeType,
     sizeBytes: input.buffer.byteLength,
-    createdAt: Date.now(),
+    createdAt: input.at,
     sha256: hash,
     hashMethod: method,
     kind: input.kind,

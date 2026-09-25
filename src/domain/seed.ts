@@ -187,6 +187,8 @@ export const INCIDENT_SEED: Incident[] = [
   {
     id: 'inc-1038',
     code: 'SRK-1038',
+    // Raised by passively detected signals. Never carries a dialable number.
+    origin: 'passive_signal',
     journeyId: null,
     travellerId: TRAVELLER_ID,
     travellerName: DEMO_PEOPLE.traveller,
@@ -194,12 +196,25 @@ export const INCIDENT_SEED: Incident[] = [
     updatedAt: Date.now() - 1000 * 60 * 60 * 24 * 3 + 1000 * 60 * 22,
     severity: 'ALERT',
     status: 'RESOLVED',
-    riskScore: 62,
+    // 20 + 25 + 10 + 12 compounding - 15 credit = 52. The reasons must sum to
+    // the score: the incident screen lists every line and then shows the total.
+    riskScore: 52,
     riskReasons: [
       { code: 'route_deviation', label: 'Route deviation detected', delta: 20 },
       { code: 'missed_checkin', label: 'Safety check-in missed', delta: 25 },
       { code: 'late_arrival', label: 'Traveller is past the expected arrival time', delta: 10 },
-      { code: 'safe_confirmation', label: 'Safety confirmed by traveller', delta: -7 },
+      {
+        code: 'compounding',
+        label: 'Unrelated safety signals stacking up',
+        delta: 12,
+        detail: '3 independent signal families open — late, deviation, checkin',
+      },
+      {
+        code: 'safe_confirmation',
+        label: 'Safety confirmed by traveller',
+        delta: -15,
+        detail: 'Resolves part of the raised signals — the event log still records them',
+      },
     ],
     locationLabel: 'Ring Road service lane (simulated)',
     locationAvailable: true,
@@ -214,13 +229,14 @@ export const INCIDENT_SEED: Incident[] = [
     escalationOrder: ['ct-rohan', 'ct-priya'],
     handoff: {
       emergencyServicesContacted: false,
-      note: 'Escalation stayed inside the trusted circle. No emergency service was contacted.',
-      localEmergencyNumberLabel: 'Local emergency number (set in Profile)',
+      note: 'Escalation stayed inside the trusted circle. SURAKSHA never dials emergency services for you.',
+      localEmergencyNumberLabel: 'Emergency number 112',
     },
   },
   {
     id: 'inc-1021',
     code: 'SRK-1021',
+    origin: 'passive_signal',
     journeyId: null,
     travellerId: TRAVELLER_ID,
     travellerName: DEMO_PEOPLE.traveller,
@@ -228,8 +244,17 @@ export const INCIDENT_SEED: Incident[] = [
     updatedAt: Date.now() - 1000 * 60 * 60 * 24 * 7 + 1000 * 60 * 9,
     severity: 'WATCH',
     status: 'RESOLVED',
+    // A single low-level signal: +10, floored to the WATCH minimum of 30.
     riskScore: 30,
-    riskReasons: [{ code: 'late_arrival', label: 'Traveller is past the expected arrival time', delta: 10 }],
+    riskReasons: [
+      { code: 'late_arrival', label: 'Traveller is past the expected arrival time', delta: 10 },
+      {
+        code: 'band_floor',
+        label: 'Open signal — confirm with the traveller',
+        delta: 20,
+        detail: '1 signal family still open. WATCH means "confirm with the traveller", not an emergency.',
+      },
+    ],
     locationLabel: 'Campus Road (simulated)',
     locationAvailable: true,
     summary: 'Arrived 24 minutes later than planned because of a late bus. No escalation beyond a late-arrival notice.',
@@ -243,7 +268,7 @@ export const INCIDENT_SEED: Incident[] = [
     handoff: {
       emergencyServicesContacted: false,
       note: 'No escalation was required.',
-      localEmergencyNumberLabel: 'Local emergency number (set in Profile)',
+      localEmergencyNumberLabel: 'Emergency number 112',
     },
   },
 ];
@@ -536,7 +561,7 @@ export const LESSONS_SEED: Lesson[] = [
         ],
         answerIndex: 1,
         explanation:
-          'Primary, then backup, then your own emergency workflow. SURAKSHA does not contact emergency services on your behalf.',
+          'Primary, then backup, then your own emergency workflow. SURAKSHA never dials emergency services for you — you always make that call yourself.',
       },
     ],
   },
@@ -634,7 +659,7 @@ export const LESSONS_SEED: Lesson[] = [
         ],
         answerIndex: 1,
         explanation:
-          'SURAKSHA does not replace emergency services and never auto-dispatches based on a risk score.',
+          'SURAKSHA does not replace emergency services, never dials them for you, and never auto-dispatches based on a risk score.',
       },
       {
         id: 'q2',

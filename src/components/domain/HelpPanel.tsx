@@ -4,13 +4,22 @@
  */
 
 import { Link } from 'react-router-dom';
-import { CheckCircle2, MessageSquare, PhoneCall, ShieldAlert, Users } from 'lucide-react';
+import { CheckCircle2, MessageSquare, PhoneCall, ShieldAlert, TimerOff, Users } from 'lucide-react';
 import { Button, Modal } from '@/components/ui/primitives';
-import { useAppState, useCircle, store } from '@/store/hooks';
+import { useAppState, useCircle, useNow, store } from '@/store/hooks';
+import { formatCountdown } from '@/lib/format';
+import { effectiveNow } from '@/domain/journey';
+import { cn } from '@/lib/cn';
 
 export function HelpPanel() {
   const { ui, journey } = useAppState();
   const { primary, backup } = useCircle();
+  const now = useNow();
+  const helpOpen = Boolean(journey?.helpRequestedAt);
+  // Pausing freezes the countdown because the escalation itself is frozen.
+  const helpRemaining = journey?.helpDeadlineAt
+    ? Math.max(0, journey.helpDeadlineAt - effectiveNow(journey, now))
+    : 0;
 
   return (
     <Modal
@@ -21,6 +30,36 @@ export function HelpPanel() {
       size="md"
     >
       <div className="space-y-2.5">
+        {/*
+          The request stays visible after it is made. It used to be a one-shot
+          event: you pressed the button, the sheet closed, and the app gave you
+          no sign that anything was waiting on an answer.
+        */}
+        {helpOpen ? (
+          <div
+            className={cn(
+              'flex flex-wrap items-center justify-between gap-3 rounded-xl border px-3.5 py-3',
+              helpRemaining <= 45_000 ? 'border-alert-200 bg-alert-50' : 'border-ink-200 bg-ink-50',
+            )}
+          >
+            <div className="flex items-start gap-2.5">
+              <TimerOff
+                size={17}
+                className={cn('mt-0.5 shrink-0', helpRemaining <= 45_000 ? 'text-alert-600' : 'text-ink-500')}
+              />
+              <div>
+                <p className="text-[13px] font-semibold text-ink-900">Help request is open</p>
+                <p className="mt-0.5 text-[12px] text-ink-600">
+                  Escalates to your whole trusted circle in{' '}
+                  <span className="font-bold tabular">{formatCountdown(helpRemaining)}</span> if nobody reaches you.
+                </p>
+              </div>
+            </div>
+            <Button size="sm" variant="outline" onClick={() => store.resolveHelpFollowUp('manual')}>
+              Someone reached me
+            </Button>
+          </div>
+        ) : null }
         <OptionRow
           icon={<MessageSquare size={17} />}
           title={`Message ${primary?.name ?? 'your guardian'}`}
@@ -81,7 +120,7 @@ export function HelpPanel() {
         <OptionRow
           icon={<ShieldAlert size={17} />}
           title="Quick SOS"
-          body="Logs a CRITICAL event, creates an incident and alerts your whole circle. It does not call emergency services."
+          body="Logs a CRITICAL event, creates an incident and alerts your whole circle. It never dials emergency services for you — you call them yourself."
           action={
             <Button
               size="sm"
@@ -119,8 +158,8 @@ export function HelpPanel() {
 
       {journey?.primaryContactId ? (
         <p className="mt-3 text-[11.5px] leading-relaxed text-ink-500">
-          Escalation order for this journey: primary guardian → backup guardian → emergency workflow. SURAKSHA never skips
-          to contacting emergency services on your behalf.
+          Escalation order for this journey: primary guardian → backup guardian → emergency workflow. SURAKSHA never dials
+          emergency services on your behalf — if you need them, you call them.
         </p>
       ) : null}
     </Modal>

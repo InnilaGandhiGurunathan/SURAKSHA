@@ -148,5 +148,10 @@ export const backend: SurakshaBackend = new LocalBackend(storage);
 /**
  * Bumped whenever the persisted shape changes. Stored state from an older
  * version is discarded on load rather than rendered half-migrated.
+ *
+ * v4: Journey gained `helpRequestedAt` / `helpDeadlineAt` and Incident gained
+ *     `origin` + the optional handoff fields. Without a bump, state written by
+ *     v3 would load with those fields missing — precisely the half-migrated
+ *     render this constant exists to prevent.
  */
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;

@@ -5,7 +5,7 @@
  */
 
 import { beforeEach, describe, expect, it } from 'vitest';
-import { SurakshaStore } from './store';
+import { HELP_GRACE_MINUTES, SurakshaStore } from './store';
 
 function newStore(): SurakshaStore {
   const store = new SurakshaStore();
@@ -41,8 +41,10 @@ describe('demo flow through the store', () => {
     const journey = store.getState().journey!;
     expect(journey.deviationActive).toBe(true);
     expect(journey.deviationCount).toBe(1);
-    expect(journey.risk.score).toBe(20);
-    expect(journey.risk.band).toBe('SAFE');
+    // One deviation now reads as WATCH: a single open signal must not leave the
+    // traveller on a screen that says everything looks normal.
+    expect(journey.risk.band).toBe('WATCH');
+    expect(journey.risk.reasons.some((r) => r.code === 'route_deviation')).toBe(true);
 
     store.moveOffRoute();
     const second = store.getState().journey!;
@@ -63,7 +65,9 @@ describe('demo flow through the store', () => {
     const journey = state.journey!;
 
     expect(journey.checkIn.missedCount).toBe(1);
-    expect(journey.risk.score).toBe(55); // deviation 20 + repeated 10 + missed 25
+    // deviation 20 + repeated 10 + missed 25, plus +6 for a second unrelated
+    // signal family compounding with the first.
+    expect(journey.risk.score).toBe(61);
     expect(journey.risk.band).toBe('ALERT');
 
     const missed = state.events.find((e) => e.type === 'checkin_missed');
@@ -121,6 +125,96 @@ describe('demo flow through the store', () => {
     expect(incident.handoff.note).toMatch(/does not contact/i);
   });
 
+  /*
+   * "I need help" used to be a one-shot event: the sheet closed and nothing
+   * followed. It now opens a grace window that escalates on its own.
+   */
+  describe('help grace window', () => {
+    it('opens a deadline when the traveller asks for help', () => {
+      store.startCanonicalJourney();
+      store.requestHelp('check-in');
+
+      const journey = store.getState().journey!;
+      expect(journey.helpRequestedAt).not.toBeNull();
+      expect(journey.helpDeadlineAt).not.toBeNull();
+      expect(journey.helpDeadlineAt! - journey.helpRequestedAt!).toBe(HELP_GRACE_MINUTES * 60_000);
+      expect(store.getState().events.some((e) => e.type === 'help_requested')).toBe(true);
+    });
+
+    it('escalates to the whole circle once the window lapses unanswered', () => {
+      store.startCanonicalJourney();
+      store.requestHelp('check-in');
+      const before = store.getState().alerts.length;
+
+      store.setSimSpeed(8);
+      const engine = store as unknown as { tick: () => void };
+      for (let i = 0; i < 30; i += 1) engine.tick(); // 4 virtual minutes
+
+      const state = store.getState();
+      const journey = state.journey!;
+      expect(journey.helpDeadlineAt).toBeNull();
+      expect(journey.escalationLevel).toBeGreaterThanOrEqual(2);
+      expect(state.alerts.length).toBeGreaterThan(before);
+      expect(state.alerts.some((a) => /asked for help/i.test(a.title))).toBe(true);
+
+      // It produced a real record the guardian can open, not just a toast.
+      const incident = state.incidents.find((i) => i.id === journey.incidentId);
+      expect(incident?.severity).toBe('ALERT');
+      expect(incident?.summary).toMatch(/help was requested/i);
+      // A help request is not an SOS, so it must not carry a dialable number.
+      expect(incident?.handoff.emergencyNumber).toBeUndefined();
+    });
+
+    it('escalates exactly once, not on every tick after the deadline', () => {
+      store.startCanonicalJourney();
+      store.requestHelp('check-in');
+      store.setSimSpeed(8);
+      const engine = store as unknown as { tick: () => void };
+      for (let i = 0; i < 60; i += 1) engine.tick();
+
+      const escalated = store
+        .getState()
+        .incidents.filter((i) => /help was requested/i.test(i.summary));
+      expect(escalated).toHaveLength(1);
+    });
+
+    it('stands the deadline down when the traveller confirms safety', () => {
+      store.startCanonicalJourney();
+      store.requestHelp('check-in');
+      store.confirmSafe('journey');
+
+      const journey = store.getState().journey!;
+      expect(journey.helpRequestedAt).toBeNull();
+      expect(journey.helpDeadlineAt).toBeNull();
+      expect(store.getState().alerts.some((a) => /asked for help/i.test(a.title))).toBe(false);
+    });
+
+    it('can be closed when somebody reaches the traveller', () => {
+      store.startCanonicalJourney();
+      store.requestHelp('check-in');
+      store.resolveHelpFollowUp('acknowledged');
+
+      const journey = store.getState().journey!;
+      expect(journey.helpRequestedAt).toBeNull();
+      expect(journey.helpDeadlineAt).toBeNull();
+      expect(store.getState().events.some((e) => e.type === 'system_note')).toBe(true);
+    });
+
+    it('does not escalate while the journey is paused', () => {
+      store.startCanonicalJourney();
+      store.requestHelp('check-in');
+      store.pauseJourney();
+
+      store.setSimSpeed(8);
+      const engine = store as unknown as { tick: () => void };
+      for (let i = 0; i < 40; i += 1) engine.tick();
+
+      // Pausing freezes the journey's timers, including this deadline.
+      expect(store.getState().journey!.helpDeadlineAt).not.toBeNull();
+      expect(store.getState().alerts.some((a) => /asked for help/i.test(a.title))).toBe(false);
+    });
+  });
+
   it('lets the guardian acknowledge an alert and records it on the timeline', () => {
     store.startCanonicalJourney();
     store.moveOffRoute();
@@ -153,7 +247,11 @@ describe('demo flow through the store', () => {
     store.confirmSafe('journey');
     const after = store.getState().journey!;
 
+    // A confirmed-safe message must actually step the score down. The band
+    // floor is gated on worries that are still open, so it cannot drag a
+    // recovered score back up to WATCH.
     expect(after.risk.score).toBeLessThan(before);
+    expect(after.risk.reasons.some((r) => r.code === 'band_floor')).toBe(false);
     expect(after.checkIn.completedCount).toBeGreaterThan(0);
     expect(store.getState().events.some((e) => e.type === 'safe_confirmed')).toBe(true);
   });

@@ -35,7 +35,13 @@ export function StartJourney() {
   const [durationMinutes, setDurationMinutes] = useState(30);
   const [arrivalMode, setArrivalMode] = useState<'duration' | 'clock'>('duration');
   const [arrivalClock, setArrivalClock] = useState(() => {
-    const target = new Date(Date.now() + 30 * 60_000);
+    /*
+     * Derived from the simulator's clock, never the wall clock. The demo runs at
+     * a fixed 22:42 while the real time is whatever it is, so seeding this field
+     * from `Date.now()` made the "arrive by" option default to ~10 hours later
+     * than the simulation — switching to clock mode produced an absurd ETA.
+     */
+    const target = new Date(now + 30 * 60_000);
     return `${String(target.getHours()).padStart(2, '0')}:${String(target.getMinutes()).padStart(2, '0')}`;
   });
   const [interval, setIntervalMinutes] = useState(travellerProfile.preferredCheckInMinutes);

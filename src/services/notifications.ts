@@ -35,6 +35,16 @@ export interface NotifyInput {
   urgent?: boolean;
   /** Deliver only to these contact ids (used by the escalation ladder). */
   only?: string[];
+  /**
+   * The moment the notification was sent, on the *simulator's* clock.
+   *
+   * This is required rather than defaulted on purpose. It used to be read from
+   * `Date.now()` inside this service, which stamped every delivery log entry
+   * with the wall clock while the rest of the app ran on the virtual clock —
+   * so the receipt log showed a notification delivered "14 h ago" the instant
+   * it appeared. The store owns the clock; pass it in.
+   */
+  at: number;
 }
 
 /**
@@ -55,7 +65,7 @@ export function deliver(input: NotifyInput): DeliveryReceipt[] {
           contactName: contact.name,
           channel: 'push' as Channel,
           status: 'skipped' as DeliveryStatus,
-          at: Date.now(),
+          at: input.at,
           title: input.title,
           body: input.body,
           reason: 'No notification channel enabled for this contact',
@@ -69,7 +79,8 @@ export function deliver(input: NotifyInput): DeliveryReceipt[] {
       contactName: contact.name,
       channel,
       status: (!contact.available && channel !== 'sms' ? 'queued' : 'delivered') as DeliveryStatus,
-      at: Date.now() + index * 400,
+      // Slight stagger so the log reads like a fan-out, not one instant.
+      at: input.at + index * 400,
       title: input.title,
       body: input.body,
       reason: contact.available ? undefined : `${contact.name} is marked unavailable — delivery queued`,

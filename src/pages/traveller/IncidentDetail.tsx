@@ -88,6 +88,8 @@ export function IncidentDetail({ role }: { role: 'traveller' | 'guardian' }) {
         buffer,
         kind: 'voice_note',
         description: 'Three-second tone generated on this device to demonstrate integrity hashing.',
+        // Stamped on the simulator's clock so it matches the incident timeline.
+        at: now,
       });
       store.attachEvidence(record);
     } finally {
@@ -105,6 +107,7 @@ export function IncidentDetail({ role }: { role: 'traveller' | 'guardian' }) {
         buffer,
         kind: 'note',
         description: 'Attached locally. Nothing is uploaded in this prototype.',
+        at: now,
       });
       store.attachEvidence(record);
     } finally {

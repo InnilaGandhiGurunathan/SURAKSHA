@@ -140,8 +140,12 @@ describe('screen mounting', () => {
 
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getAllByText('Quick SOS').length).toBeGreaterThan(0);
-    expect(within(dialog).getAllByText(/Hold 2 seconds/i).length).toBeGreaterThan(0);
+    // The quick path is a single tap. Hold-to-confirm was removed from it
+    // because speed is the entire point of this control.
+    expect(within(dialog).queryAllByText(/Hold 2 seconds/i).length).toBe(0);
+    expect(within(dialog).getAllByText(/One tap — no hold required/i).length).toBeGreaterThan(0);
     expect(within(dialog).getByText(/No emergency service is contacted/i)).toBeTruthy();
+    expect(within(dialog).getAllByText(/dials for you/i).length).toBeGreaterThan(0);
   });
 
   it('switches between the traveller and guardian navigation', async () => {
