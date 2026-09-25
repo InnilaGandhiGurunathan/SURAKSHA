@@ -9,6 +9,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { AppShell } from '@/components/layout/AppShell';
 import { store as appStore } from '@/store/hooks';
+import { authStore } from '@/store/authStore';
 import { TravellerHome } from '@/pages/traveller/TravellerHome';
 import { StartJourney } from '@/pages/traveller/StartJourney';
 import { ActiveJourney } from '@/pages/traveller/ActiveJourney';
@@ -134,6 +135,9 @@ describe('screen mounting', () => {
 
   it('opens the Quick SOS panel and explains what it will and will not do', async () => {
     appStore.startCanonicalJourney();
+    // The SOS surface doubles as the sign-in affordance when signed out, so
+    // establish a local session first.
+    await authStore.signIn('demo@suraksha.app');
     renderRoute(<TravellerHome />);
 
     await userEvent.click(screen.getAllByRole('button', { name: /Quick SOS/i })[0]);

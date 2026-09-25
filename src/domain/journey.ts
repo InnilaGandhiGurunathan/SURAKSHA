@@ -5,7 +5,7 @@
  * genuinely freezes instead of continuing to accrue lateness in the background.
  */
 
-import type { Journey, Point, UserProfile } from './types';
+import type { Journey, Point, RouteMode, RouteOption, RoutePreferences, UserProfile } from './types';
 import { EMPTY_RISK_INPUTS, scoreRisk } from './riskEngine';
 import { buildRoutePlan, CAMPUS_POINT, HOME_POINT, EXPECTED_ROUTE, TRAVELLER_ID } from './seed';
 import { distanceToPath, pointAtProgress } from './geo';
@@ -24,6 +24,10 @@ export interface StartJourneyConfig {
   /** Demo pacing: first check-in after 60 s instead of a full interval. */
   demoPacing?: boolean;
   traveller?: UserProfile;
+  /** Optional maps-style route/ETA preferences and the computed option set. */
+  routePreferences?: RoutePreferences;
+  routeOptions?: RouteOption[];
+  routeMode?: RouteMode;
 }
 
 let journeyCounter = 0;
@@ -86,6 +90,10 @@ export function createJourney(config: StartJourneyConfig, now: number, traveller
     endedAt: null,
     resolvedBy: null,
   };
+
+  if (config.routePreferences) skeleton.routePreferences = config.routePreferences;
+  if (config.routeOptions) skeleton.routeOptions = config.routeOptions;
+  if (config.routeMode) skeleton.routeMode = config.routeMode;
 
   return skeleton;
 }

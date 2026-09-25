@@ -8,9 +8,11 @@
  * not, and how to reach real emergency help.
  */
 
-import { AlertOctagon, BellRing, FileText, MapPin, Phone, ShieldCheck, ShieldAlert, Siren, UserCheck } from 'lucide-react';
+import { AlertOctagon, BellRing, FileText, LogIn, MapPin, Phone, ShieldCheck, ShieldAlert, Siren, UserCheck } from 'lucide-react';
 import { Button, Modal, StatusPill } from '@/components/ui/primitives';
+import { useNavigate } from 'react-router-dom';
 import { useAppState, store } from '@/store/hooks';
+import { useAuth } from '@/store/authStore';
 import { formatClock, formatRelative } from '@/lib/format';
 import { formatLatLng } from '@/domain/geo';
 import { EMERGENCY_NUMBER, originMayDial } from '@/domain/types';
@@ -226,7 +228,13 @@ function InfoTile({ title, body }: { title: string; body: string }) {
   );
 }
 
-/** The persistent Quick SOS control used in the shell + home screen. */
+/**
+ * The persistent Quick SOS control used in the shell + home screen.
+ *
+ * Lifecycle is auth-gated: before the traveller is signed in this control —
+ * and the corresponding tab in the mobile bottom bar — becomes the
+ * **Sign In** affordance, so there is exactly one obvious way into the app.
+ */
 export function SosButton({
   className,
   compact,
@@ -235,12 +243,15 @@ export function SosButton({
   compact?: boolean;
 }) {
   const { journey } = useAppState();
-  const disabled = !journey || journey.status === 'ENDED';
+  const { signedIn } = useAuth();
+  const navigate = useNavigate();
+  const icon = signedIn ? <Siren size={compact ? 16 : 18} /> : <LogIn size={compact ? 16 : 18} />;
+
   return (
     <button
       type="button"
-      onClick={() => store.toggleUi('sosPanelOpen', true)}
-      aria-label="Quick SOS — opens the emergency workflow"
+      onClick={() => (signedIn ? store.toggleUi('sosPanelOpen', true) : navigate('/login'))}
+      aria-label={signedIn ? 'Quick SOS — opens the emergency workflow' : 'Sign in to SURAKSHA'}
       className={cn(
         'group inline-flex items-center gap-2 rounded-xl bg-critical-600 font-bold text-white transition-state hover:bg-critical-700 active:scale-[0.98]',
         compact ? 'h-10 px-3 text-[12.5px]' : 'h-12 px-4 text-sm',
@@ -248,10 +259,10 @@ export function SosButton({
       )}
     >
       <span className="relative grid place-items-center">
-        <Siren size={compact ? 16 : 18} />
-        {!disabled ? <span className="absolute inset-0 rounded-full ring-2 ring-critical-300 animate-pulse-ring" aria-hidden /> : null}
+        {icon}
+        {signedIn && !journey ? <span className="absolute inset-0 rounded-full ring-2 ring-critical-300 animate-pulse-ring" aria-hidden /> : null}
       </span>
-      QUICK SOS
+      {signedIn ? 'QUICK SOS' : 'SIGN IN'}
     </button>
   );
 }

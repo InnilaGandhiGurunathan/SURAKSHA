@@ -9,6 +9,7 @@ import {
   Clock,
   Compass,
   Info,
+  LogIn,
   MapPin,
   PhoneCall,
   Plus,
@@ -30,6 +31,7 @@ import { EventTimeline } from '@/components/domain/EventTimeline';
 import { RiskWhyPanel } from '@/components/domain/RiskWhyPanel';
 import { MissedCheckInBanner } from '@/components/domain/CheckInPrompt';
 import { useAppState, useCircle, store } from '@/store/hooks';
+import { useAuth } from '@/store/authStore';
 import { formatClock, formatDurationMinutes, formatRelative } from '@/lib/format';
 import { formatLatLng } from '@/domain/geo';
 import { linkQuality, remainingMinutes } from '@/domain/journey';
@@ -38,6 +40,7 @@ import { EMPTY_RISK_INPUTS, scoreRisk } from '@/domain/riskEngine';
 export function TravellerHome() {
   const { journey, events, now, travellerProfile, places } = useAppState();
   const { primary, backup } = useCircle();
+  const { signedIn } = useAuth();
   const navigate = useNavigate();
 
   const assessment = journey?.risk ?? scoreRisk(EMPTY_RISK_INPUTS);
@@ -105,11 +108,12 @@ export function TravellerHome() {
             )}
             <button
               type="button"
-              onClick={() => store.toggleUi('sosPanelOpen', true)}
+              onClick={() => (signedIn ? store.toggleUi('sosPanelOpen', true) : navigate('/login'))}
+              aria-label={signedIn ? 'Quick SOS — opens the emergency workflow' : 'Sign in to SURAKSHA'}
               className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-critical-600 text-sm font-bold text-white transition-state hover:bg-critical-700 active:scale-[0.99]"
             >
-              <ShieldCheck size={17} />
-              QUICK SOS
+              {signedIn ? <ShieldCheck size={17} /> : <LogIn size={17} />}
+              {signedIn ? 'QUICK SOS' : 'SIGN IN'}
             </button>
           </div>
         }

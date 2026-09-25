@@ -25,6 +25,76 @@ export const EMERGENCY_NUMBER = '112';
 /** The only origins allowed to surface a dialable emergency number. */
 export const EMERGENCY_NUMBER_ORIGINS = ['explicit_sos', 'demo_control'] as const;
 
+/* ------------------------------------------------------------------ */
+/* Routing engine (Google-Maps-style route / ETA preferences)          */
+/* ------------------------------------------------------------------ */
+
+/** Affordable platforms plus a paid "premium" tier, mirroring a maps app. */
+export type RouteMode = 'fastest' | 'walking' | 'cycling' | 'car' | 'premium';
+
+export type AvoidOption = 'ferries' | 'highways' | 'tolls';
+
+export interface RoutePreferences {
+  /**
+   * The departure slot the ETA is computed against. `null` means "leave now",
+   * exactly like a maps app default.
+   */
+  departAt: 'now' | 'custom' | null;
+  customDepartureAt: number | null;
+  arriveBy: boolean;
+  customArrivalAt: number | null;
+  avoid: AvoidOption[];
+  /** Forced speed modifier 0.2x – 3x — the "custom speed" slider. */
+  speedFactor: number;
+  /** Holds the route traffic level constant to match the computed ETA. */
+  presetTraffic: 'light' | 'moderate' | 'heavy' | null;
+  previewOverride: PreviewOverride | null;
+}
+
+export interface PreviewOverride {
+  mode: RouteMode;
+  baseKilometres: number;
+  estimatedBaseMinutes: number;
+}
+
+/* ------------------------------------------------------------------ */
+/* Authentication                                                      */
+/* ------------------------------------------------------------------ */
+
+export interface AuthUser {
+  id: string;
+  email: string | null;
+  provider: 'email' | 'google' | 'github' | 'magic_link';
+  name: string;
+  avatarUrl: string | null;
+  isPlaceholder: boolean;
+  lastSignInAt: number;
+}
+
+export interface AuthState {
+  config: AuthConfig;
+  pendingMagicLink: boolean;
+  /** The email a magic link / OTP was just sent to. */
+  magicLinkEmail: string | null;
+  resolving: boolean;
+}
+
+export interface AuthConfig {
+  /** Supabase project URL, e.g. `https://abcd1234.supabase.co`. */
+  url: string;
+  /** Public (publishable, anon) key — never the service_role secret. */
+  anonKey: string;
+  /** True only when the app has been linked to a project's Auth endpoints. */
+  configured: boolean;
+  /**
+   * True while we run `auth.signInWithOtp` against the real tab (token
+   * changes to fall back to local auth). See `trySupabaseAuth(source)`.
+   */
+  checkExplicit: boolean;
+  /** Human-facing message from the last link attempt. */
+  statusMessage: string | null;
+}
+
 /**
  * How an incident came to exist. This gates the emergency-call affordance: only
  * a traveller-initiated record may surface a dialable number. A passively
@@ -134,9 +204,31 @@ export interface CheckInWindow {
   missedCount: number;
 }
 
+export interface RouteWaypoint {
+  label: string;
+  /** Whether this waypoint was resolved on a real, configured maps backend. */
+  real: boolean;
+}
+
+/**
+ * The route building block a maps app shows for every *tab* (not just the
+ * fastest default): distance, duration and the waypoint path behind them.
+ */
+export interface RouteOption {
+  mode: RouteMode;
+  label: string;
+  distanceKm: number;
+  durationMin: number;
+  /** Selected from the traffic model the traveller chose. */
+  traffic: 'light' | 'moderate' | 'heavy';
+  waypoints: RouteWaypoint[];
+}
+
 export interface Journey {
   id: string;
   travellerId: string;
+  /** Supabase user id when signed in, or the local demo identity. */
+  authUserId?: string | null;
   travellerName: string;
   originLabel: string;
   destinationLabel: string;
@@ -181,6 +273,13 @@ export interface Journey {
   guardianNotifiedAt: number | null;
   guardianAcknowledgedAt: number | null;
   incidentId: string | null;
+
+  /** The route/ETA preferences this journey was planned with, if any. */
+  routePreferences?: RoutePreferences;
+  /** Every computed route option at planning time (one per mode). */
+  routeOptions?: RouteOption[];
+  /** The mode the traveller actually chose. */
+  routeMode?: RouteMode;
 
   /**
    * "I need help" used to be a fire-and-forget event with no follow-up state,

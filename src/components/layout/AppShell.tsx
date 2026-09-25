@@ -10,10 +10,11 @@ import { useGuardianAlerts } from '@/store/hooks';
 
 import { useEffect, useState, type ReactNode } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { ChevronRight, FlaskConical, Menu, ShieldCheck, X } from 'lucide-react';
+import { ChevronRight, FlaskConical, LogIn, Menu, ShieldCheck, X } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { navForRole, type NavItem } from './nav';
 import { useAppState, store } from '@/store/hooks';
+import { useAuth } from '@/store/authStore';
 import { StatusPill } from '@/components/ui/primitives';
 import { SosButton, SosPanel } from '@/components/domain/SosFlow';
 import { CheckInPrompt } from '@/components/domain/CheckInPrompt';
@@ -26,6 +27,7 @@ import { Badge } from '@/components/ui/primitives';
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { role, journey, travellerProfile, exitMode, ready } = useAppState();
+  const { signedIn } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [moreOpen, setMoreOpen] = useState(false);
@@ -96,14 +98,18 @@ export function AppShell({ children }: { children: ReactNode }) {
           <div className="flex flex-1 items-center justify-center">
             <button
               type="button"
-              onClick={() => store.toggleUi('sosPanelOpen', true)}
+              onClick={() => (signedIn ? store.toggleUi('sosPanelOpen', true) : navigate('/login'))}
               className="relative -mt-6 grid h-14 w-14 place-items-center rounded-2xl bg-critical-600 text-white shadow-overlay transition-state hover:bg-critical-700 active:scale-95"
-              aria-label="Quick SOS"
+              aria-label={signedIn ? 'Quick SOS' : 'Sign in to SURAKSHA'}
             >
-              <span className="absolute inset-0 rounded-2xl ring-2 ring-critical-300/70 animate-pulse-ring" aria-hidden />
-              <span className="text-[11px] font-bold leading-none">
-                SOS
-              </span>
+              {!signedIn ? (
+                <span className="absolute inset-0 rounded-2xl ring-2 ring-critical-300/70 animate-pulse-ring" aria-hidden />
+              ) : null}
+              {signedIn ? (
+                <span className="text-[11px] font-bold leading-none">SOS</span>
+              ) : (
+                <LogIn size={20} />
+              )}
             </button>
           </div>
 
@@ -264,6 +270,8 @@ function TopBar({
 }) {
   const { role, incidents, journey } = useAppState();
   const navigate = useNavigate();
+  const { signedIn, user } = useAuth();
+  const authName = user?.email?.split('@')[0] ?? user?.name ?? 'Account';
   const unreadAlerts = useGuardianAlerts().filter((a) => !a.read).length;
   const openIncident = incidents.find((i) => i.status !== 'RESOLVED' && i.id === journey?.incidentId);
 
@@ -321,6 +329,18 @@ function TopBar({
             <Badge tone="critical" className="hidden sm:inline-flex">
               {openIncident.code} open
             </Badge>
+          ) : null}
+
+          {signedIn ? (
+            <button
+              type="button"
+              onClick={() => navigate(role === 'guardian' ? '/guardian/settings' : '/traveller/profile')}
+              className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-ink-200 bg-white px-3 text-[12.5px] font-semibold text-ink-700 transition-state hover:bg-ink-50"
+              title="Signed-in account"
+            >
+              <ShieldCheck size={15} className="text-safe-600" />
+              <span className="hidden max-w-[140px] truncate sm:inline">{authName}</span>
+            </button>
           ) : null}
 
           <SosButton compact />

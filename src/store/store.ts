@@ -25,6 +25,9 @@ import type {
   Journey,
   RiskBand,
   Role,
+  RouteMode,
+  RouteOption,
+  RoutePreferences,
   SafePlace,
   SafetyEvent,
   SafetyReport,
@@ -61,6 +64,16 @@ import {
 } from '@/domain/seed';
 import { pointAtProgress, pointInPolygon, pushTrail, RISK_ZONE, polygonCentroid } from '@/domain/geo';
 import { makeEvent } from '@/services/eventBus';
+import { getAuthUser } from '@/services/auth';
+
+/** The signed-in account to stamp on journeys, or null when there is none. */
+function authUserForJourney(): string | null {
+  try {
+    return getAuthUser()?.id ?? null;
+  } catch {
+    return null;
+  }
+}
 
 export const TICK_MS = 1000;
 export const DEMO_SPEEDS = [1, 2, 4, 8] as const;
@@ -479,6 +492,9 @@ export class SurakshaStore {
     const now = this.state.now;
     const primary = this.state.contacts.find((c) => c.id === config.primaryContactId);
     const journey = createJourney(config, now, this.state.travellerProfile.name);
+    // Stamp the signed-in identity (Supabase user or local fixture) onto the
+    // journey so the incident/guardian records can quote the right person.
+    journey.authUserId = authUserForJourney();
 
     this.logEvent(
       makeEvent({
@@ -521,6 +537,50 @@ export class SurakshaStore {
       tone: 'brand',
     });
     return withNotify;
+  }
+
+  /**
+   * Re-plan the *running* journey's ETA from the live route panel. Updates the
+   * preferences + option set, re-bases the expected arrival on the chosen mode
+   * and re-assesses (timing signals stay live). A judge watching the guardian
+   * side sees the ETA change without any other state being invented.
+   */
+  updateRoutePlan(config: {
+    preferences: RoutePreferences;
+    options: RouteOption[];
+    mode: RouteMode;
+    durationMin: number;
+  }): void {
+    const journey = this.state.journey;
+    if (!journey || journey.status !== 'ACTIVE') return;
+    const now = this.state.now;
+    const prevBand = journey.risk.band;
+    const next: Journey = {
+      ...journey,
+      routePreferences: config.preferences,
+      routeOptions: config.options,
+      routeMode: config.mode,
+      expectedArrivalAt: now + Math.max(5, config.durationMin) * 60_000,
+      etaMinutes: Math.max(5, config.durationMin),
+      expectedArrivalAdjusted: true,
+    };
+    const reassessed = reduceJourney(next, { type: 'TICK' }, now);
+    this.set({ journey: reassessed });
+    this.logEvent(
+      this.makeJourneyEvent('system_note', {
+        note: `Route re-planned as ${config.mode} (~${config.durationMin} min).`,
+        simulated: true,
+      }, reassessed),
+      {
+        toast: {
+          title: 'ETA updated',
+          description: `The route is now ${config.durationMin} min via ${config.mode}. Your guardian sees the same estimate.`,
+          tone: 'brand',
+        },
+      },
+    );
+    this.handleBandChange(prevBand, reassessed, now);
+    this.persist(true);
   }
 
   private applyAction(action: JourneyAction): Journey | null {

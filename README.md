@@ -186,7 +186,35 @@ npx playwright install chromium
 npm run test:e2e    # real-browser flows, including two-tab synchronization
 ```
 
-No API keys, no accounts, no network calls at runtime. Metadata lives in `localStorage` under `suraksha.v1.*`; evidence bytes are stored in IndexedDB (`suraksha.evidence.v1`). Tabs on the same browser origin synchronize committed journey/check-in/alert updates. There is no cross-device service.
+No API keys, no accounts, no network calls at runtime (unless you link Supabase — see below). Metadata lives in `localStorage` under `suraksha.v1.*`; evidence bytes are stored in IndexedDB (`suraksha.evidence.v1`). Tabs on the same browser origin synchronize committed journey/check-in/alert updates.
+
+### Sign-in & Supabase Auth
+
+The **QUICK SOS** button is the sign-in affordance: signed out, every SOS surface (header, mobile centre tab, home hero) reads **SIGN IN** and opens `/login`. The login page carries the product story while keeping one obvious way in.
+
+- **Email magic link (OTP)** — routed through Supabase Auth when a project is linked.
+- **Google / GitHub** — OAuth, needs the providers enabled in Supabase Auth.
+- **Local demo fallback** — with no project linked the app signs you in on-device (clearly labelled “demo mode”). This keeps the zero-config build working.
+
+Link a project either from the **“Connect your Supabase project”** card on `/login`, or via build env:
+
+```bash
+cp .env.example .env.local   # paste Project URL + anon (public) key
+```
+
+Only the project URL and the **anon/public** key are ever stored or read — never the `service_role` secret. `services/supabase.ts` lazy-creates the client, so an unlinked checkout boots with no Supabase at all.
+
+### Maps-style routing
+
+Both **Start Journey** (planning) and **Active Journey** (live) carry a Google-Maps-shaped route panel:
+
+- **Mode tabs** — Fastest, Walking, Cycling, Car, and a paid “SURAKSHA Guard” tier.
+- **Depart / arrive-by** — leave now, a custom departure time, or “arrive by” (the departure time is solved from the ETA).
+- **Traffic model** (light / moderate / heavy) and a **custom speed** slider (0.2×–3×).
+- **Avoid options** — ferries, highways, tolls.
+- **Turn-by-turn steps** and a **Recalculate** refresh, with every number labelled an *estimate* on SURAKSHA's fictional demo map.
+
+Chosen preferences are stored on the journey, and the live panel can re-plan the running ETA (guardians see the same estimate).
 
 ---
 
@@ -214,7 +242,7 @@ Demo roles: **Traveller — Aarav Sharma**, **Guardian — Rohan Mehta**, backup
 - Status colours: GREEN = SAFE, YELLOW = WATCH, ORANGE = ALERT, RED = CRITICAL.
 - 8px spacing rhythm, 12–20px card radii, subtle shadows, tabular numerals for timers and scores.
 - Large touch targets, visible keyboard focus everywhere, focus-trapped dialogs, `aria-live` regions for state changes, `prefers-reduced-motion` support.
-- Traveller UI is mobile-first (sticky header + bottom navigation with a centre **SOS** button that is always one tap away); the guardian UI is desktop-first with a persistent sidebar. Neither is a shrunken copy of the other.
+- Traveller UI is mobile-first (sticky header + bottom navigation with a centre **SOS** button that is always one tap away — it doubles as the **SIGN IN** affordance while signed out); the guardian UI is desktop-first with a persistent sidebar. Neither is a shrunken copy of the other.
 - Microinteractions are restrained: state transitions, countdowns, score changes, toasts, marker movement, alert appearance, modal transitions. No flashing, no fear-based animation.
 
 ---
@@ -227,7 +255,7 @@ Demo roles: **Traveller — Aarav Sharma**, **Guardian — Rohan Mehta**, backup
 - Exit Mode does not place real calls; it is an escape aid, not an emergency action. It *does* speak its scripted lines through the device's own Web Speech API once the traveller accepts the call, and falls back to text-only silence wherever speech synthesis is unavailable. There is deliberately **no ringtone**: it would have to start from a timer rather than a user gesture, and browsers would block it.
 - **112 is offered, never dialled.** An explicit SOS surfaces a real `tel:` link that the traveller presses themselves, and the incident records that they did. No passively detected signal can reach a number — the gate lives in the domain layer, and a record with no recorded origin fails closed.
 - **The WATCH floor is a deliberate product decision**, not an accident: it keeps WATCH meaning “confirm with the traveller” while making sure one open signal is never hidden behind a SAFE headline. If you disagree with it, remove the `band_floor` block in `riskEngine.ts` — nothing else depends on it.
-- No authentication in the prototype: a demo role switcher stands in for it.
+- Authentication: the sign-in flow supports Supabase Auth (email OTP + OAuth) and an honest local fallback. Without a linked project, the local sign-in is an on-device fixture, not a real identity check — the UI says so.
 - SURAKSHA is a coordination tool. In a real emergency, call your local emergency service (112 in India).
 
 

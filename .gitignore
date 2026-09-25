@@ -16,6 +16,8 @@ tsconfig.tsbuildinfo
 src/**/*.js
 src/**/*.js.map
 src/**/*.d.ts
+# ...but vite-env.d.ts is hand-written (import.meta.env typings), keep it.
+!src/vite-env.d.ts
 # That same command emitted a root vite.config.js, which Vite resolves BEFORE
 # vite.config.ts — silently shadowing the real config.
 /vite.config.js
@@ -25,3 +27,8 @@ src/**/*.d.ts
 # Browser test output
 /test-results/
 /playwright-report/
+
+# Local env — never commit real credentials (see .env.example)
+.env
+.env.local
+.env.*.local

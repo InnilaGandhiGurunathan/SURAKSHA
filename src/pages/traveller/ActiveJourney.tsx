@@ -44,7 +44,10 @@ import { HelpPanel } from '@/components/domain/HelpPanel';
 import { useAppState, useCircle, store } from '@/store/hooks';
 import { formatClock, formatCountdown, formatDurationMinutes, formatRelative, pluralise} from '@/lib/format';
 import { effectiveNow, linkQuality, estimatedArrivalAt, remainingMinutes } from '@/domain/journey';
+import { buildRouteOptions, resolveTraffic } from '@/domain/routing';
+import { RouteOptionsPanel } from '@/components/domain/RouteOptionsPanel';
 import { cn } from '@/lib/cn';
+import type { Journey, RouteMode, RouteOption, RoutePreferences } from '@/domain/types';
 
 export function ActiveJourney() {
   const { journey, events, now } = useAppState();
@@ -191,6 +194,9 @@ export function ActiveJourney() {
               ) : null}
             </CardBody>
           </Card>
+
+          {/* Live route re-planning (maps-style) */}
+          <LiveRouteCard journey={journey} />
 
           {/* Check-in panel */}
           <Card tone={journey.checkIn.state === 'REQUESTED' ? 'brand' : undefined} className={journey.checkIn.state === 'REQUESTED' ? 'bg-brand-50' : ''}>
@@ -451,5 +457,53 @@ function MapStat({ label, value, hint }: { label: string; value: string; hint?: 
       <p className="mt-0.5 text-[14px] font-bold text-ink-900">{value}</p>
       {hint ? <p className="text-[11.5px] text-ink-500">{hint}</p> : null}
     </div>
+  );
+}
+
+/** The maps-style route editor on the live journey — re-plans the running ETA. */
+function LiveRouteCard({ journey }: { journey: Journey }) {
+  const { now } = useAppState();
+  const [mode, setMode] = useState<RouteMode>(journey.routeMode ?? 'fastest');
+  const [preferences, setPreferences] = useState<RoutePreferences>({
+    departAt: 'now',
+    customDepartureAt: null,
+    arriveBy: false,
+    customArrivalAt: null,
+    avoid: [],
+    speedFactor: 1,
+    presetTraffic: journey.routePreferences?.presetTraffic ?? 'light',
+    previewOverride: null,
+  });
+
+  const options: RouteOption[] = journey.routeOptions?.length
+    ? journey.routeOptions
+    : buildRouteOptions(journey.route.expected, 1, preferences.presetTraffic ?? resolveTraffic(preferences));
+  const chosen = options.find((o) => o.mode === mode) ?? options[0];
+
+  const commit = () => {
+    const traffic = preferences.presetTraffic ?? resolveTraffic(preferences);
+    const list = buildRouteOptions(journey.route.expected, preferences.speedFactor ?? 1, traffic);
+    store.updateRoutePlan({
+      preferences,
+      options: list,
+      mode,
+      durationMin: list.find((o) => o.mode === mode)?.durationMin ?? chosen?.durationMin ?? journey.etaMinutes,
+    });
+  };
+
+  return (
+    <RouteOptionsPanel
+      variant="live"
+      origin={journey.originLabel}
+      destination={journey.destinationLabel}
+      options={options}
+      mode={mode}
+      onMode={setMode}
+      preferences={preferences}
+      onPreferences={setPreferences}
+      onRefresh={commit}
+      now={now}
+      arrivalAt={(journey.expectedArrivalAdjusted ? journey.expectedArrivalAt : now) + (chosen?.durationMin ?? 0) * 60_000}
+    />
   );
 }

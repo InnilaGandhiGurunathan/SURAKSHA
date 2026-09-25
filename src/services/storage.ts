@@ -119,6 +119,7 @@ export function createStorage(): StorageAdapter {
 export const storage = createStorage();
 
 export const STORAGE_KEYS = {
+  auth: 'auth',
   journey: 'journey',
   events: 'events',
   incidents: 'incidents',
