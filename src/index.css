@@ -58,6 +58,18 @@
     @apply border-t border-ink-200/70;
   }
 
+  /* Label text rendered *by* the Google Maps API (outside React), so it needs
+     a real class rather than a Tailwind utility on a JSX node. */
+  .sr-map-label {
+    font-family: Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    color: #333d4d;
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.9);
+    white-space: nowrap;
+  }
+
   .sr-scroll {
     scrollbar-width: thin;
     scrollbar-color: #C6CDD9 transparent;

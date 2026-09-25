@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/primitives';
 import { PageHeader, JourneySummaryCard, SectionHeading } from '@/components/domain/blocks';
 import { JourneyMap } from '@/components/map/JourneyMap';
+import { useMapSurface } from '@/components/map/useGoogleMaps';
 import { EventTimeline } from '@/components/domain/EventTimeline';
 import { RiskWhyPanel } from '@/components/domain/RiskWhyPanel';
 import { useAppState, useCircle, store } from '@/store/hooks';
@@ -31,6 +32,7 @@ import { linkQuality, remainingMinutes } from '@/domain/journey';
 export function GuardianJourneys() {
   const { journeyId } = useParams<{ journeyId: string }>();
   const { journey, events, now, incidents } = useAppState();
+  const mapSurface = useMapSurface();
   const active = journey && journey.status !== 'ENDED' ? journey : null;
 
   if (journeyId && active && active.id === journeyId) {
@@ -57,7 +59,7 @@ export function GuardianJourneys() {
             <Card className="overflow-hidden">
               <CardHeader
                 title="Live map"
-                subtitle={`Updated ${formatRelative(active.lastPositionAt, now)}`}
+                subtitle={`${mapSurface.headerLabel} · updated ${formatRelative(active.lastPositionAt, now)}`}
                 icon={<MapPin size={16} />}
                 action={<StatusPill band={active.risk.band} size="sm" showEmoji={false} />}
               />
@@ -117,6 +119,7 @@ export function GuardianJourneys() {
 function JourneyDetail() {
   const { journey, events, now, alerts } = useAppState();
   const { primary, backup } = useCircle();
+  const mapSurface = useMapSurface();
   if (!journey) return null;
 
   const quality = linkQuality(journey, now);
@@ -150,7 +153,7 @@ function JourneyDetail() {
         <Card className="overflow-hidden">
           <CardHeader
             title="Live position"
-            subtitle="Simulated GPS. Coordinates are fictional."
+            subtitle={`${mapSurface.headerLabel}. The route and coordinates are fictional.`}
             icon={<MapPin size={16} />}
           />
           <CardBody className="pt-3">

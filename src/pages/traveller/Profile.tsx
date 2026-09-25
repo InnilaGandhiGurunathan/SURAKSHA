@@ -28,6 +28,7 @@ import {
   Toggle,
 } from '@/components/ui/primitives';
 import { PageHeader } from '@/components/domain/blocks';
+import { GoogleMapsDebugCard } from '@/components/map/MapsDebugPanel';
 import { useAppState, useCircle, store } from '@/store/hooks';
 import { CHECK_IN_OPTIONS } from '@/domain/seed';
 import { formatBytes } from '@/lib/format';
@@ -272,6 +273,10 @@ export function Profile() {
               </p>
             </CardBody>
           </Card>
+
+          {/* The map's real-tiles switch is opt-in via an env var, so the page that
+              explains settings is also the page that says whether it arrived. */}
+          <GoogleMapsDebugCard />
 
           <Card tone="neutral">
             <CardBody className="space-y-2 text-[12px] leading-relaxed text-ink-600">

@@ -34,6 +34,7 @@ import {
 } from '@/components/ui/primitives';
 import { PageHeader, SectionHeading } from '@/components/domain/blocks';
 import { JourneyMap } from '@/components/map/JourneyMap';
+import { MapSourceChip } from '@/components/map/MapsDebugPanel';
 import { EventTimeline } from '@/components/domain/EventTimeline';
 import { RiskBandLadder, RiskWhyPanel } from '@/components/domain/RiskWhyPanel';
 import { useAppState, useCircle, store } from '@/store/hooks';
@@ -199,12 +200,16 @@ export function GuardianDashboard() {
                 subtitle={`${active.originLabel} → ${active.destinationLabel} · started ${formatClock(active.startedAt)}`}
                 icon={<MapPin size={16} />}
                 action={
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center justify-end gap-2">
                     <Chip tone={quality === 'connected' ? 'safe' : quality === 'delayed' ? 'watch' : 'alert'}>
                       {quality === 'connected'
                         ? 'Live link'
                         : `Last updated ${formatRelative(active.lastPositionAt, now)}`}
                     </Chip>
+                    {/* The map surface is stated in the header, not only on the map:
+                        a guardian deciding whether to escalate must not have to
+                        work out whether the position is real streets or a canvas. */}
+                    <MapSourceChip long={false} />
                     <StatusPill band={band} size="sm" showEmoji={false} />
                   </div>
                 }
