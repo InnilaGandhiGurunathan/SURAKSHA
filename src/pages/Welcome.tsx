@@ -19,13 +19,14 @@ import {
   Users,
 } from 'lucide-react';
 import { Button } from '@/components/ui/primitives';
+import { store } from '@/store/hooks';
 import { EMERGENCY_NUMBER } from '@/domain/types';
 
 const FEATURES = [
   {
     to: '/traveller/start',
     icon: Compass,
-    title: 'Guardian Mode journeys',
+    title: 'Journey / Guardian Mode',
     body: 'Share your plan — from, to, and when — with the people you choose.',
   },
   {
@@ -37,13 +38,13 @@ const FEATURES = [
   {
     to: '/traveller/journey',
     icon: ShieldCheck,
-    title: 'An honest risk state',
-    body: 'A clear SAFE → CRITICAL state with every reason shown. Never a verdict about you.',
+    title: 'Context-aware risk detection',
+    body: 'Timing, route, check-ins and zones combine into one honest state — reasons always shown.',
   },
   {
     to: '/traveller/circle',
     icon: Users,
-    title: 'Trusted Circle escalation',
+    title: 'Trusted-contact escalation',
     body: 'Primary → backup → emergency workflow, in an order you control.',
   },
   {
@@ -55,7 +56,7 @@ const FEATURES = [
   {
     to: '/traveller/incidents',
     icon: FileText,
-    title: 'Incident records & evidence',
+    title: 'Evidence preservation',
     body: 'Timelines and on-device evidence, hashed so nothing can be quietly changed.',
   },
 ];
@@ -132,6 +133,26 @@ export function Welcome() {
           Also inside: verified safe places and short safety lessons
           <ArrowRight size={14} className="ml-auto text-ink-300" />
         </Link>
+
+        {/* Quick SOS opens the real emergency workflow — the same one Home uses. */}
+        <button
+          type="button"
+          onClick={() => store.toggleUi('sosPanelOpen', true)}
+          className="mt-3 flex w-full items-center gap-3 rounded-card border border-critical-200 bg-critical-50 px-4 py-3.5 text-left transition-state hover:bg-critical-100/60"
+        >
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-critical-600 text-white">
+            <Siren size={18} />
+          </span>
+          <span className="min-w-0">
+            <span className="block text-[14px] font-bold text-critical-900">
+              Quick SOS — one tap, no hold
+            </span>
+            <span className="block text-[12.5px] leading-snug text-critical-800/80">
+              Alerts your trusted circle with your last known location. Try it here.
+            </span>
+          </span>
+          <ArrowRight size={14} className="ml-auto shrink-0 text-critical-400" />
+        </button>
       </section>
 
       {/* Honest limits */}
