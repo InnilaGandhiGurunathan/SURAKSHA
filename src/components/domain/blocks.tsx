@@ -18,7 +18,7 @@ import { cn } from '@/lib/cn';
 import { TONES, toneForBand } from '@/lib/status';
 import { Avatar, StatusDot, StatusPill } from '@/components/ui/primitives';
 import { formatClock, formatDurationMinutes, formatRelative } from '@/lib/format';
-import { estimatedArrivalAt, linkQuality, remainingMinutes } from '@/domain/journey';
+import { effectiveNow, estimatedArrivalAt, linkQuality, remainingMinutes } from '@/domain/journey';
 import { guardianActionFor } from '@/domain/riskEngine';
 
 export function PageHeader({
@@ -115,8 +115,17 @@ export function StateHero({
                 icon={<Clock size={13} />}
                 label="ETA"
                 value={
-                  now > estimatedArrivalAt(journey, now)
-                    ? `late ${formatDurationMinutes(remainingMinutes(journey, now) === 0 ? Math.max(1, Math.round((now - estimatedArrivalAt(journey, now)) / 60000)) : 0)}`
+                  // Measured against the frozen clock, so a paused journey reads
+                  // as on hold rather than drifting into "late" behind the UI.
+                  effectiveNow(journey, now) > estimatedArrivalAt(journey, now)
+                    ? `late ${formatDurationMinutes(
+                        Math.max(
+                          1,
+                          Math.round(
+                            (effectiveNow(journey, now) - estimatedArrivalAt(journey, now)) / 60000,
+                          ),
+                        ),
+                      )}`
                     : formatDurationMinutes(remainingMinutes(journey, now))
                 }
               />

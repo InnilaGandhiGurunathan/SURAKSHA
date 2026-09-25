@@ -17,6 +17,7 @@ import type {
   EvidenceRecord,
   GuardianAlert,
   Incident,
+  IncidentOrigin,
   IncidentSeverity,
   Journey,
   RiskBand,
@@ -28,6 +29,8 @@ import type {
   TrustedContact,
   UserProfile,
 } from '@/domain/types';
+import { EMERGENCY_NUMBER, originMayDial } from '@/domain/types';
+import { RISK_WEIGHTS } from '@/domain/riskEngine';
 import { presentEvent } from '@/services/eventBus';
 import { backend, SCHEMA_VERSION } from '@/services/backend';
 import { deliver, type DeliveryReceipt } from '@/services/notifications';
@@ -58,6 +61,13 @@ import { makeEvent } from '@/services/eventBus';
 
 export const TICK_MS = 1000;
 export const DEMO_SPEEDS = [1, 2, 4, 8] as const;
+
+/**
+ * How long a help request waits for the traveller before it escalates to the
+ * trusted circle. Short enough to be useful, long enough that "I need help"
+ * does not instantly become an alert.
+ */
+export const HELP_GRACE_MINUTES = 3;
 
 export interface LearningState {
   completed: string[];
@@ -253,6 +263,9 @@ export class SurakshaStore {
         this.hydrateIncidentTimeline(incident.id);
       }
     }
+
+    // Repair references that a previous build left pointing at deleted records.
+    this.reconcileIncidentReferences();
 
     this.listeners.forEach((l) => l());
     this.start();
@@ -553,25 +566,143 @@ export class SurakshaStore {
       });
     }
 
+    // Confirming safety also stands down an open help request: the traveller
+    // has told us they are okay, so it must not escalate on a timer.
+    const afterConfirm = this.state.journey;
+    if (afterConfirm && (afterConfirm.helpRequestedAt || afterConfirm.helpDeadlineAt)) {
+      this.set({
+        journey: { ...afterConfirm, helpRequestedAt: null, helpDeadlineAt: null },
+      });
+    }
+
     this.update((s) => ({
       ui: { ...s.ui, checkInPromptOpen: false, helpPanelOpen: false },
     }));
   }
 
-  /** "I NEED HELP" — opens proportionate options rather than escalating hard. */
-  requestHelp(): void {
+  /**
+   * "I NEED HELP" — opens proportionate options rather than escalating hard.
+   *
+   * It also opens a grace window. Previously this was a one-shot event: if the
+   * traveller asked for help and then got no answer, nothing else happened.
+   * Now the request is remembered on the journey and escalates on its own if
+   * nobody is reached inside HELP_GRACE_MINUTES.
+   */
+  requestHelp(via: 'check-in' | 'home' | 'journey' = 'check-in'): void {
     const journey = this.state.journey;
-    this.logEvent(
-      this.makeJourneyEvent('help_requested', { via: 'check-in' }, journey),
-      {
+    const now = this.state.now;
+    if (journey && journey.status !== 'ENDED') {
+      const next: Journey = {
+        ...journey,
+        helpRequestedAt: now,
+        helpDeadlineAt: now + HELP_GRACE_MINUTES * 60_000,
+      };
+      this.set({ journey: next });
+      this.logEvent(
+        this.makeJourneyEvent('help_requested', {
+          via,
+          graceMinutes: HELP_GRACE_MINUTES,
+          escalatesAt: next.helpDeadlineAt,
+        }, next),
+        {
+          toast: {
+            title: 'Help requested',
+            description: `Your circle is watching. If nobody has reached you in ${HELP_GRACE_MINUTES} minutes this escalates on its own.`,
+            tone: 'alert',
+          },
+        },
+      );
+    } else {
+      this.logEvent(this.makeJourneyEvent('help_requested', { via }, journey), {
         toast: {
           title: 'Help requested',
           description: 'Choose how you want to proceed — your guardian is watching.',
           tone: 'alert',
         },
+      });
+    }
+    this.update((s) => ({ ui: { ...s.ui, helpPanelOpen: true, checkInPromptOpen: false } }));
+  }
+
+  /**
+   * Somebody reached the traveller, or they told us they are okay — close the
+   * help grace window without escalating.
+   */
+  resolveHelpFollowUp(reason: 'acknowledged' | 'confirmed_safe' | 'manual'): void {
+    const journey = this.state.journey;
+    if (!journey) return;
+    if (!journey.helpRequestedAt && !journey.helpDeadlineAt) return;
+
+    this.set({
+      journey: { ...journey, helpRequestedAt: null, helpDeadlineAt: null },
+    });
+    this.logEvent(
+      this.makeJourneyEvent('system_note', { note: 'Help follow-up closed', reason }, this.state.journey),
+    );
+    this.persist(true);
+  }
+
+  /**
+   * The grace window lapsed with no answer. Escalate the help request to the
+   * whole trusted circle and raise an ALERT-severity incident, so the request
+   * appears on the guardian side instead of disappearing.
+   */
+  escalateHelpFollowUp(): void {
+    const journey = this.state.journey;
+    if (!journey || journey.status === 'ENDED') return;
+    if (!journey.helpDeadlineAt) return;
+    const now = this.state.now;
+
+    const cleared: Journey = {
+      ...journey,
+      helpRequestedAt: null,
+      helpDeadlineAt: null,
+      escalationLevel: Math.max(journey.escalationLevel, 2),
+      guardianNotifiedAt: now,
+    };
+    this.set({ journey: cleared });
+
+    this.logEvent(
+      this.makeJourneyEvent('help_requested', {
+        via: 'escalation',
+        escalated: true,
+        waitedMinutes: HELP_GRACE_MINUTES,
+      }, cleared),
+      {
+        toast: {
+          title: 'Help request escalated',
+          description: 'Nobody reached you in time, so your whole trusted circle has been notified.',
+          tone: 'critical',
+          sticky: true,
+        },
       },
     );
-    this.update((s) => ({ ui: { ...s.ui, helpPanelOpen: true, checkInPromptOpen: false } }));
+
+    const incident = this.ensureIncident(
+      cleared,
+      'ALERT',
+      `Help was requested and not answered within ${HELP_GRACE_MINUTES} minutes. Escalated to the trusted circle. No danger has been confirmed.`,
+      'passive_signal',
+    );
+
+    this.pushAlert(cleared, {
+      band: 'ALERT',
+      title: `${cleared.travellerName} asked for help`,
+      body: `They pressed "I need help" and nobody reached them within ${HELP_GRACE_MINUTES} minutes. Please try to reach them now. No danger has been confirmed.`,
+      journeyId: cleared.id,
+    });
+
+    this.notifyCircle(cleared, {
+      title: `Help requested — ${cleared.travellerName}`,
+      body: `${cleared.travellerName} asked for help and did not respond within ${HELP_GRACE_MINUTES} minutes. Incident ${incident.code}. Please try to reach them.`,
+      only: cleared.escalationOrder,
+      eventType: 'guardian_notified',
+      incidentId: incident.id,
+      dedupeKey: `help-${incident.id}`,
+    });
+
+    this.set({ activeIncidentId: incident.id });
+    this.persist(true);
   }
 
   /* ---------------------------------------------------------------- */
@@ -789,6 +920,12 @@ export class SurakshaStore {
       return null;
     }
 
+    /*
+     * Mark the journey as carrying an explicit SOS, then let the engine derive
+     * the score, the band and the reason list. The engine owns the numbers so
+     * the explanation and the total can never disagree — it pins the band to
+     * CRITICAL and suppresses compounding and recovery credit for an SOS.
+     */
     const sosJourney: Journey = {
       ...journey,
       risk: {
@@ -798,18 +935,13 @@ export class SurakshaStore {
           {
             code: 'explicit_sos',
             label: 'Explicit distress signal (Quick SOS)',
-            delta: 50,
+            delta: RISK_WEIGHTS.explicitSos,
             detail: 'The traveller activated the emergency workflow',
           },
         ],
-        score: Math.min(100, Math.max(0, journey.risk.reasons.filter((r) => r.delta > 0).reduce((s, r) => s + r.delta, 0) + 50)),
-        band: 'CRITICAL',
-        headline: 'Emergency workflow activated by the traveller.',
-        computedAt: now,
       },
       escalationLevel: 0,
     };
-    // Re-derive the score through the engine so the explanation always matches.
     const prevBand = journey.risk.band;
     const reassessed = reduceJourney(sosJourney, { type: 'TICK' }, now);
     this.set({ journey: { ...reassessed, status: journey.status } });
@@ -827,6 +959,7 @@ export class SurakshaStore {
       reassessed,
       'CRITICAL',
       'Emergency workflow activated by the traveller (Quick SOS).',
+      source === 'demo' ? 'demo_control' : 'explicit_sos',
     );
     this.set({ activeIncidentId: incident.id });
 
@@ -842,7 +975,12 @@ export class SurakshaStore {
     return `SRK-${next}`;
   }
 
-  private ensureIncident(journey: Journey, severity: IncidentSeverity, summary: string): Incident {
+  private ensureIncident(
+    journey: Journey,
+    severity: IncidentSeverity,
+    summary: string,
+    origin: IncidentOrigin = 'passive_signal',
+  ): Incident {
     const activeIncidentId = journey.incidentId ?? this.state.journey?.incidentId ?? null;
     if (activeIncidentId) {
       const existing = this.state.incidents.find((i) => i.id === activeIncidentId);
@@ -876,6 +1014,7 @@ export class SurakshaStore {
     const incident: Incident = {
       id,
       code,
+      origin,
       journeyId: journey.id,
       travellerId: journey.travellerId,
       travellerName: journey.travellerName,
@@ -900,7 +1039,14 @@ export class SurakshaStore {
       handoff: {
         emergencyServicesContacted: false,
         note: 'SURAKSHA has alerted your trusted circle. It does not contact or dispatch emergency services, and it never claims to know whether you are in danger.',
-        localEmergencyNumberLabel: 'Local emergency number (set this in Profile)',
+        localEmergencyNumberLabel: `Emergency number ${EMERGENCY_NUMBER}`,
+        /*
+         * The dialable number is only ever attached to a traveller-initiated
+         * record. A passively detected signal must not surface something the
+         * traveller can dial — see EMERGENCY_NUMBER_ORIGINS.
+         */
+        emergencyNumber: originMayDial(origin) ? EMERGENCY_NUMBER : undefined,
+        emergencyNumberDialledAt: null,
       },
     };
 
@@ -1031,12 +1177,76 @@ export class SurakshaStore {
       incidents: this.state.incidents.filter((i) => i.id !== incidentId),
       activeIncidentId: this.state.activeIncidentId === incidentId ? null : this.state.activeIncidentId,
       events: this.state.events.filter((e) => e.incidentId !== incidentId),
+      // Do not leave the journey pointing at a record that no longer exists —
+      // that dangling id is what made "Open incident" navigate into nothing.
+      journey: this.state.journey
+        ? { ...this.state.journey, incidentId: this.state.journey.incidentId === incidentId ? null : this.state.journey.incidentId }
+        : null,
+      alerts: this.state.alerts.map((a) => (a.incidentId === incidentId ? { ...a, incidentId: null } : a)),
     });
     this.pushToast({
       title: `Incident ${incident?.code ?? ''} deleted`.trim(),
       description: 'The record and its evidence were removed from this device.',
       tone: 'neutral',
     });
+    this.persist(true);
+  }
+
+  /**
+   * Repairs references left dangling by older builds — a journey or alert whose
+   * `incidentId` points at a record that is no longer in state. Without this,
+   * state persisted before the fix keeps navigating to a missing incident.
+   */
+  private reconcileIncidentReferences(): void {
+    const known = new Set(this.state.incidents.map((i) => i.id));
+    const journey = this.state.journey;
+    const journeyDangles = Boolean(journey?.incidentId && !known.has(journey.incidentId));
+    const alertsDangle = this.state.alerts.some((a) => a.incidentId && !known.has(a.incidentId));
+    const activeDangles = Boolean(this.state.activeIncidentId && !known.has(this.state.activeIncidentId));
+
+    if (!journeyDangles && !alertsDangle && !activeDangles) return;
+
+    this.state = {
+      ...this.state,
+      journey: journeyDangles && journey ? { ...journey, incidentId: null } : journey,
+      activeIncidentId: activeDangles ? null : this.state.activeIncidentId,
+      alerts: alertsDangle
+        ? this.state.alerts.map((a) => (a.incidentId && !known.has(a.incidentId) ? { ...a, incidentId: null } : a))
+        : this.state.alerts,
+    };
+  }
+
+  /**
+   * Records that the traveller pressed the dial affordance on an explicit-SOS
+   * record. SURAKSHA did not place the call and does not know whether it
+   * connected — the timeline records only that the traveller opened the
+   * dialler themselves.
+   */
+  recordEmergencyDialAttempt(incidentId?: string): void {
+    const id = incidentId ?? this.state.activeIncidentId ?? this.state.journey?.incidentId ?? null;
+    if (!id) return;
+    const incident = this.state.incidents.find((i) => i.id === id);
+    if (!incident || !originMayDial(incident.origin)) return;
+
+    const now = this.state.now;
+    this.updateIncident(id, (i) => ({
+      ...i,
+      handoff: { ...i.handoff, emergencyNumberDialledAt: now },
+    }));
+    this.logEvent(
+      makeEvent({
+        type: 'system_note',
+        userId: this.state.travellerProfile.id,
+        journeyId: this.state.journey?.id ?? null,
+        incidentId: id,
+        timestamp: now,
+        metadata: {
+          note: `Traveller opened the dialler for ${EMERGENCY_NUMBER} themselves`,
+          placedBySuraksha: false,
+          simulated: true,
+        },
+      }),
+    );
     this.persist(true);
   }
 
@@ -1221,13 +1431,18 @@ export class SurakshaStore {
       incident = this.ensureIncident(
         next,
         'ALERT',
-        'Multiple safety signals detected: route deviation with an unanswered check-in. No danger has been confirmed.',
+        'Multiple safety signals detected from passively detected events. No danger has been confirmed.',
+        'passive_signal',
       );
     } else if (next.risk.band === 'CRITICAL') {
+      // An explicit SOS is normally recorded by triggerSos(), which owns the
+      // incident origin. Reaching CRITICAL from passive signals is impossible
+      // (the ceiling holds at 74), so this fails closed as a passive record.
       incident = this.ensureIncident(
         next,
         'CRITICAL',
         'Emergency workflow activated. Explicit SOS signal received from the traveller.',
+        'passive_signal',
       );
     }
 
@@ -1579,6 +1794,19 @@ export class SurakshaStore {
           nextJourney = this.state.journey ?? nextJourney;
           prevBandForFinalFanout = nextJourney.risk.band;
         }
+        if (intent.kind === 'escalate_help') {
+          /*
+           * This runs *inside* the ACTIVE branch, before the set()/return below.
+           * Anything after that return never executes for an active journey.
+           * escalateHelpFollowUp() writes to the store itself, so the journey
+           * must be re-read afterwards — otherwise the branch's own set() would
+           * clobber the escalation with a stale object.
+           */
+          this.set({ journey: nextJourney });
+          this.escalateHelpFollowUp();
+          nextJourney = this.state.journey ?? nextJourney;
+          prevBandForFinalFanout = nextJourney.risk.band;
+        }
       }
 
       // Periodic location pings (every ~5 virtual seconds).
@@ -1649,17 +1877,45 @@ export class SurakshaStore {
     });
   }
 
+  /**
+   * Demo control: drop or restore the simulated position feed.
+   *
+   * Losing location is a real signal (+25), so this has to re-assess the
+   * journey rather than only flipping a boolean. Previously the flag changed
+   * and the score did not move at all.
+   */
   setLocationAvailable(available: boolean): void {
     const journey = this.state.journey;
     if (!journey) return;
-    this.set({ journey: { ...journey, locationAvailable: available } });
-    if (!available) {
-      this.pushToast({
-        title: 'Location unavailable',
-        description: 'Using the last known position. Your guardian sees the same.',
-        tone: 'watch',
-      });
-    }
+    const now = this.state.now;
+    const prevBand = journey.risk.band;
+
+    // Push the last-known timestamp back so restoring the feed clears staleness.
+    const next = reduceJourney(
+      { ...journey, locationAvailable: available, lastPositionAt: available ? now : journey.lastPositionAt },
+      { type: 'TICK' },
+      now,
+    );
+    this.set({ journey: next });
+
+    this.logEvent(
+      this.makeJourneyEvent('system_note', {
+        note: available ? 'Location feed restored' : 'Location feed lost — last known position in use',
+        simulated: true,
+        score: next.risk.score,
+      }, next),
+      {
+        toast: {
+          title: available ? 'Location restored' : 'Location unavailable',
+          description: available
+            ? 'Your guardian can see your position again.'
+            : `Using the last known position. This adds +${RISK_WEIGHTS.locationLost} to the risk score. Your guardian sees the same.`,
+          tone: available ? 'safe' : 'watch',
+        },
+      },
+    );
+
+    this.handleBandChange(prevBand, next, now);
     this.persist(true);
   }
 

@@ -17,6 +17,7 @@ import { StatusPill } from '@/components/ui/primitives';
 import { SosButton, SosPanel } from '@/components/domain/SosFlow';
 import { CheckInPrompt } from '@/components/domain/CheckInPrompt';
 import { ExitModeOverlay } from '@/components/domain/ExitMode';
+import { GuardianHelpAlert } from '@/components/domain/GuardianHelpAlert';
 import { Toaster } from './Toaster';
 import { DemoPanel } from './DemoPanel';
 import { RoleSwitcher } from './RoleSwitcher';
@@ -59,6 +60,9 @@ export function AppShell({ children }: { children: ReactNode }) {
       <SosPanel />
       <CheckInPrompt />
       <ExitModeOverlay />
+      {/* The guardian-side surface for "I need help" — without it the traveller
+          asked for help and nothing was shown to the person who could give it. */}
+      <GuardianHelpAlert />
       <DemoPanel />
 
       <div className="lg:flex">
@@ -73,9 +77,14 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </div>
 
-      {/* Mobile bottom navigation */}
+      {/* Mobile bottom navigation.
+          `transform-gpu` + `translateZ(0)` promote this fixed, blurred bar to
+          its own compositing layer. It contains an infinitely animating child
+          (the SOS pulse ring), which kept the layer permanently dirty, so the
+          backdrop-filter behind it re-composited on every scroll frame. The
+          promotion changes nothing visually. */}
       <nav
-        className="fixed inset-x-0 bottom-0 z-40 border-t border-ink-200 bg-white/95 backdrop-blur lg:hidden safe-bottom"
+        className="fixed inset-x-0 bottom-0 z-40 transform-gpu border-t border-ink-200 bg-white/95 backdrop-blur will-change-transform [transform:translateZ(0)] lg:hidden safe-bottom"
         aria-label="Primary"
       >
         <div className="mx-auto flex max-w-lg items-stretch justify-between px-2 py-1.5">

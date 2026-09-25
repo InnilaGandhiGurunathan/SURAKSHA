@@ -5,6 +5,7 @@
 
 import { beforeEach, describe, expect, it } from 'vitest';
 import { SurakshaStore, TICK_MS } from './store';
+import { estimatedArrivalAt } from '@/domain/journey';
 
 function newStore(): SurakshaStore {
   const store = new SurakshaStore();
@@ -103,6 +104,57 @@ describe('simulation engine', () => {
     expect(paused.status).toBe('PAUSED');
     expect(paused.position).toEqual(positionBefore);
     expect(paused.risk.band).toBe('SAFE');
+  });
+
+  /*
+   * #6 — lateness has to be measured against the *detour-adjusted* ETA. When it
+   * was measured against the planned arrival alone, a diversion could never
+   * make the traveller late, so a long deviation never produced this signal.
+   */
+  it('charges a late-arrival signal once time lost to a detour pushes the ETA past the plan', () => {
+    store.setSimSpeed(8);
+    const engine = store as unknown as { tick: () => void };
+    const plannedArrival = store.getState().journey!.expectedArrivalAt;
+
+    // Ten virtual minutes off-route, then back on it.
+    store.moveOffRoute();
+    for (let i = 0; i < 75; i += 1) engine.tick();
+    store.restoreRoute();
+
+    const restored = store.getState().journey!;
+    // The detour has moved the *estimate* later — the traveller is not accused
+    // of being late merely for having taken a different road.
+    expect(estimatedArrivalAt(restored, store.getState().now)).toBeGreaterThan(plannedArrival);
+    expect(restored.lateMinutes).toBe(0);
+
+    // Keep travelling until the lost time makes the arrival genuinely overdue.
+    for (let i = 0; i < 400; i += 1) engine.tick();
+
+    const journey = store.getState().journey!;
+    expect(store.getState().now).toBeGreaterThan(estimatedArrivalAt(journey, store.getState().now));
+    expect(journey.risk.reasons.some((r) => r.code === 'late_arrival')).toBe(true);
+    expect(store.getState().events.some((e) => e.type === 'late_arrival')).toBe(true);
+  });
+
+  /*
+   * #8 — losing the location feed is a signal. It used to flip a boolean and
+   * leave the score, and the headline, completely untouched.
+   */
+  it('raises the band and the headline when the location feed is lost', () => {
+    expect(store.getState().journey!.risk.band).toBe('SAFE');
+    expect(store.getState().journey!.risk.headline).toMatch(/looks normal/i);
+
+    store.setLocationAvailable(false);
+    const lost = store.getState().journey!;
+    expect(lost.risk.reasons.find((r) => r.code === 'location_lost')?.delta).toBe(25);
+    expect(lost.risk.band).toBe('WATCH');
+    // The user-visible headline must change, not just the itemised reasons.
+    expect(lost.risk.headline).not.toMatch(/looks normal/i);
+    expect(lost.risk.headline).toMatch(/location/i);
+
+    store.setLocationAvailable(true);
+    expect(store.getState().journey!.risk.band).toBe('SAFE');
+    expect(store.getState().journey!.risk.score).toBe(0);
   });
 
   it('streams location updates into the event log while travelling', () => {

@@ -1,15 +1,19 @@
 /**
- * Quick SOS — deliberate activation (2 s hold + optional confirm), then the
- * emergency *workflow* view. It shows exactly what happened, what did not, and
- * how to reach real emergency help.
+ * Quick SOS — the emergency *workflow* view.
+ *
+ * The quick path is a single tap. It used to require a two-second hold, which
+ * put a deliberate-activation gesture on the one control whose whole point is
+ * speed; hold-to-confirm is the wrong trade-off when the traveller is the one
+ * asking for help. Once activated, this shows exactly what happened, what did
+ * not, and how to reach real emergency help.
  */
 
 import { AlertOctagon, BellRing, FileText, MapPin, Phone, ShieldCheck, ShieldAlert, Siren, UserCheck } from 'lucide-react';
 import { Button, Modal, StatusPill } from '@/components/ui/primitives';
-import { HoldButton } from '@/components/ui/HoldButton';
 import { useAppState, store } from '@/store/hooks';
 import { formatClock, formatRelative } from '@/lib/format';
 import { formatLatLng } from '@/domain/geo';
+import { EMERGENCY_NUMBER, originMayDial } from '@/domain/types';
 import { RiskWhyPanel } from './RiskWhyPanel';
 import { cn } from '@/lib/cn';
 
@@ -18,6 +22,12 @@ export function SosPanel() {
   const open = ui.sosPanelOpen;
   const incident = incidents.find((i) => i.id === (activeIncidentId ?? journey?.incidentId)) ?? null;
   const activated = Boolean(incident) || journey?.risk.reasons.some((r) => r.code === 'explicit_sos');
+  /*
+   * The dialable number is offered only on a record the traveller themselves
+   * started, and the gate lives in the domain layer so no passive signal can
+   * reach it. Persisted records with no recorded origin fail closed.
+   */
+  const canDial = Boolean(incident && originMayDial(incident.origin));
 
   return (
     <Modal
@@ -28,8 +38,8 @@ export function SosPanel() {
       title={activated ? 'Emergency workflow activated' : 'Quick SOS'}
       description={
         activated
-          ? 'Your trusted circle has been alerted with your latest information. SURAKSHA does not contact emergency services for you.'
-          : 'This alerts your trusted circle. It is not a call to the police or an ambulance.'
+          ? 'Your trusted circle has been alerted with your latest information. SURAKSHA never dials emergency services for you.'
+          : 'One tap alerts your trusted circle. It is not a call to the police or an ambulance.'
       }
       footer={
         activated ? (
@@ -49,17 +59,11 @@ export function SosPanel() {
               Cancel
             </Button>
             <Button
-              variant="outline"
-              icon={<Phone size={16} />}
-              onClick={() =>
-                store.pushToast({
-                  title: 'Call your local emergency number',
-                  description: 'In this prototype we cannot place calls. Dial your local emergency service directly.',
-                  tone: 'alert',
-                })
-              }
+              variant="danger"
+              icon={<AlertOctagon size={16} />}
+              onClick={() => store.triggerSos('quick_sos')}
             >
-              Emergency services
+              Activate now
             </Button>
           </>
         )
@@ -110,20 +114,43 @@ export function SosPanel() {
             <p className="flex items-start gap-2 text-[12.5px] font-medium leading-relaxed text-critical-800">
               <Siren size={16} className="mt-0.5 shrink-0" />
               <span>
-                Need immediate emergency assistance? Contact your local emergency service directly. SURAKSHA does not call,
-                dispatch or replace them, and it never decides that you are in danger.
+                Need immediate emergency assistance? Contact your local emergency service directly. SURAKSHA never dials
+                for you, never dispatches them, and never decides that you are in danger.
               </span>
             </p>
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <Button
-              variant="danger"
-              icon={<Phone size={16} />}
-              onClick={() => store.pushToast({ title: 'Emergency services', description: 'Dial your local emergency number on your phone.', tone: 'alert' })}
-            >
-              How to call emergency services
-            </Button>
+            {canDial ? (
+              /*
+               * A real tel: link the traveller presses themselves. SURAKSHA
+               * never places the call, and only ever offers this on a record
+               * the traveller started — no passive signal can reach it.
+               */
+              <a
+                href={`tel:${EMERGENCY_NUMBER}`}
+                onClick={() => store.recordEmergencyDialAttempt(incident?.id)}
+                className="inline-flex h-12 items-center gap-2 rounded-xl bg-critical-600 px-4 text-sm font-bold text-white transition-state hover:bg-critical-700"
+              >
+                <Phone size={17} />
+                Call {EMERGENCY_NUMBER} now
+              </a>
+            ) : (
+              <Button
+                variant="danger"
+                icon={<Phone size={16} />}
+                onClick={() =>
+                  store.pushToast({
+                    title: `Call ${EMERGENCY_NUMBER} yourself`,
+                    description:
+                      'This record came from passively detected signals, so SURAKSHA will not put a dialable number on it. Dial your local emergency number directly if you are in danger.',
+                    tone: 'alert',
+                  })
+                }
+              >
+                How to call emergency services
+              </Button>
+            )}
             <Button
               variant="outline"
               icon={<ShieldCheck size={16} />}
@@ -132,17 +159,30 @@ export function SosPanel() {
               I&apos;m safe now
             </Button>
           </div>
+
+          {canDial && incident?.handoff.emergencyNumberDialledAt ? (
+            <p className="rounded-xl bg-ink-50 px-3.5 py-2.5 text-[12px] leading-relaxed text-ink-600">
+              You opened the dialler at {formatClock(incident.handoff.emergencyNumberDialledAt)}. SURAKSHA did not place
+              the call and cannot tell whether it connected.
+            </p>
+          ) : null}
         </div>
       ) : (
         <div className="flex flex-col items-center gap-5 py-2">
-          <HoldButton
-            onComplete={() => {
-              store.triggerSos('quick_sos');
-            }}
-            label="Quick SOS"
-            sublabel="Hold 2 seconds"
-            icon={<AlertOctagon size={30} />}
-          />
+          {/* Single tap: the quick path exists precisely when speed matters. */}
+          <button
+            type="button"
+            onClick={() => store.triggerSos('quick_sos')}
+            aria-label="Activate the emergency workflow now"
+            className="group flex w-full max-w-sm flex-col items-center gap-2 rounded-2xl bg-critical-600 px-6 py-7 text-white transition-state hover:bg-critical-700 active:scale-[0.98]"
+          >
+            <span className="relative grid place-items-center">
+              <span className="absolute h-16 w-16 rounded-full ring-2 ring-critical-300/70 animate-pulse-ring" aria-hidden />
+              <AlertOctagon size={38} />
+            </span>
+            <span className="text-[17px] font-bold uppercase tracking-[0.08em]">Activate Quick SOS</span>
+            <span className="text-[12px] font-medium opacity-90">One tap — no hold required</span>
+          </button>
 
           <div className="grid w-full gap-2 sm:grid-cols-2">
             <InfoTile
@@ -156,8 +196,8 @@ export function SosPanel() {
           </div>
 
           <div className="w-full rounded-xl bg-ink-50 px-3.5 py-3 text-[12px] leading-relaxed text-ink-600">
-            If you can reach a phone, dial your local emergency number. SURAKSHA works alongside those services — it does
-            not stand in for them.
+            Neither SURAKSHA nor any automatic rule dials for you. If you can reach a phone, dial {EMERGENCY_NUMBER}{' '}
+            yourself — SURAKSHA works alongside those services, it does not stand in for them.
           </div>
         </div>
       )}

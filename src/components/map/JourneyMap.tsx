@@ -103,11 +103,27 @@ export function JourneyMap({
 
   const markerColour = journey?.deviationActive ? '#FB6514' : '#4468F0';
 
+  /*
+   * `touch-action` must describe what the pointer handler actually does.
+   *
+   * This used to be an unconditional `touch-none`. But `onPointerDown` begins
+   * with `if (zoom === 1) return;`, so at the default zoom — the state the
+   * Journey and Guardian screens are almost always in — a 300–420px surface was
+   * telling the browser to hand it every touch while being unable to pan at all.
+   * Vertical swipes that started on the map died, which is the scroll glitch
+   * reported across the app. Only claim the gesture when it is genuinely usable.
+   */
+  const pannable = zoom > 1;
+
   return (
     <div className={cn('relative overflow-hidden rounded-card border border-ink-200 bg-white', height, className)}>
       <svg
         viewBox={viewBox}
-        className={cn('h-full w-full touch-none select-none', dragging ? 'cursor-grabbing' : 'cursor-grab')}
+        className={cn(
+          'h-full w-full select-none',
+          pannable ? 'touch-none cursor-grab' : 'touch-pan-y touch-pinch-zoom',
+          dragging && 'cursor-grabbing',
+        )}
         role="img"
         aria-label={describeMap(journey)}
         onPointerDown={(event) => {

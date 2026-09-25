@@ -379,7 +379,7 @@ export function DemoPanel() {
           <p className="mt-4 flex items-start gap-2 text-[11.5px] leading-relaxed text-ink-500">
             <CircleSlash size={13} className="mt-0.5 shrink-0 text-ink-400" />
             <span>
-              All data is fictional and stored on this device. SURAKSHA does not contact emergency services and never
+              All data is fictional and stored on this device. SURAKSHA never dials emergency services for you and never
               claims to know whether someone is in danger.
             </span>
           </p>

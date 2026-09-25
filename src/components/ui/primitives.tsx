@@ -385,12 +385,35 @@ export function Avatar({
 /* Dialog / sheet                                                    */
 /* ----------------------------------------------------------------- */
 
+/**
+ * Modal focus trap.
+ *
+ * Two details in here are load-bearing and were both bugs:
+ *
+ * 1. **`onClose` is held in a ref, not an effect dependency.** Callers pass a
+ *    fresh closure every render, and the store re-renders subscribed components
+ *    once a second. With `onClose` in the dependency list the effect tore down
+ *    and re-armed every second, and each re-arm called `.focus()` on the first
+ *    focusable element. `focus()` scrolls its target into view, so every open
+ *    dialog jerked the page once per second — the "sliding" reported on Learn,
+ *    Review Lessons, Exit Mode and the Quick SOS panel, four screens that share
+ *    no other code. It was also why Add Contact appeared to reject typing: the
+ *    caret was being pulled out of the input every second.
+ * 2. **`preventScroll` on every focus call**, so opening a dialog never moves
+ *    the page behind it.
+ */
 function useFocusTrap(active: boolean, onClose: () => void) {
   const ref = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
+  const restoreRef = useRef<HTMLElement | null>(null);
+
+  // Keep the latest handler without re-arming the trap.
+  onCloseRef.current = onClose;
+
   useEffect(() => {
     if (!active) return;
     const node = ref.current;
-    const previous = document.activeElement as HTMLElement | null;
+    restoreRef.current = document.activeElement as HTMLElement | null;
     const focusable = () =>
       Array.from(
         node?.querySelectorAll<HTMLElement>(
@@ -398,12 +421,12 @@ function useFocusTrap(active: boolean, onClose: () => void) {
         ) ?? [],
       ).filter((el) => !el.hasAttribute('disabled'));
 
-    focusable()[0]?.focus();
+    focusable()[0]?.focus({ preventScroll: true });
 
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.stopPropagation();
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (event.key !== 'Tab') return;
@@ -413,18 +436,19 @@ function useFocusTrap(active: boolean, onClose: () => void) {
       const last = items[items.length - 1];
       if (event.shiftKey && document.activeElement === first) {
         event.preventDefault();
-        last.focus();
+        last.focus({ preventScroll: true });
       } else if (!event.shiftKey && document.activeElement === last) {
         event.preventDefault();
-        first.focus();
+        first.focus({ preventScroll: true });
       }
     };
     document.addEventListener('keydown', onKey);
     return () => {
       document.removeEventListener('keydown', onKey);
-      previous?.focus?.();
+      restoreRef.current?.focus?.({ preventScroll: true });
     };
-  }, [active, onClose]);
+    // Deliberately NOT depending on onClose — see note above.
+  }, [active]);
   return ref;
 }
 

@@ -236,7 +236,14 @@ function LessonDialog({ lesson, onClose }: { lesson: Lesson | null; onClose: () 
                   <p className="text-[13px] font-semibold text-ink-800">
                     {index + 1}. {question.question}
                   </p>
-                  <div className="mt-2 space-y-1.5">
+                  {/*
+                    These are single-answer choices, so they are a radiogroup,
+                    not a pile of buttons. Three things were wrong before: the
+                    selection indicator only rendered after submitting (so a
+                    tap looked like it did nothing), there was no way to
+                    unselect, and the control carried no role or state at all.
+                  */}
+                  <div role="radiogroup" aria-label={question.question} className="mt-2 space-y-1.5">
                     {question.options.map((option, optionIndex) => {
                       const selected = chosen === optionIndex;
                       const isCorrect = optionIndex === question.answerIndex;
@@ -245,8 +252,19 @@ function LessonDialog({ lesson, onClose }: { lesson: Lesson | null; onClose: () 
                         <button
                           key={option}
                           type="button"
+                          role="radio"
+                          aria-checked={selected}
                           disabled={submitted}
-                          onClick={() => setAnswers((current) => ({ ...current, [question.id]: optionIndex }))}
+                          onClick={() =>
+                            setAnswers((current) => {
+                              const next = { ...current };
+                              // Tapping the chosen answer again clears it, so a
+                              // mis-tap is not a dead end before submitting.
+                              if (next[question.id] === optionIndex) delete next[question.id];
+                              else next[question.id] = optionIndex;
+                              return next;
+                            })
+                          }
                           className={cn(
                             'flex w-full items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left text-[12.5px] font-medium transition-state',
                             !showState && selected && 'border-brand-500 bg-white ring-1 ring-brand-500',
@@ -260,6 +278,8 @@ function LessonDialog({ lesson, onClose }: { lesson: Lesson | null; onClose: () 
                             <CheckCircle2 size={15} className="shrink-0 text-safe-600" />
                           ) : showState && selected ? (
                             <XCircle size={15} className="shrink-0 text-critical-600" />
+                          ) : selected ? (
+                            <CheckCircle2 size={15} className="shrink-0 text-brand-600" />
                           ) : (
                             <span className="h-3.5 w-3.5 shrink-0 rounded-full border border-ink-300" />
                           )}

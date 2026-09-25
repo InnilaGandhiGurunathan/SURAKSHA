@@ -86,6 +86,16 @@ export function CheckInPrompt() {
             tells your guardian. That is not a claim that you are in danger — it is a prompt for a human to check on you.
           </span>
         </div>
+
+        {journey.helpRequestedAt ? (
+          <div className="flex items-center gap-2 rounded-xl border border-alert-200 bg-alert-50 px-3 py-2.5 text-[12px] leading-relaxed text-alert-800">
+            <TimerOff size={15} className="mt-0.5 shrink-0 text-alert-600" />
+            <span>
+              Your help request is open. Nobody has answered yet — it escalates to your whole trusted circle on its own if
+              that does not change.
+            </span>
+          </div>
+        ) : null}
       </div>
     </Modal>
   );

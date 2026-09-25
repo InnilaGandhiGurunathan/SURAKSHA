@@ -61,6 +61,9 @@
   .sr-scroll {
     scrollbar-width: thin;
     scrollbar-color: #C6CDD9 transparent;
+    /* A scrolled pane inside a dialog must not chain the scroll to the page
+       behind it — that reads as the page "jumping" as you reach the end. */
+    overscroll-behavior: contain;
   }
 
   .sr-scroll::-webkit-scrollbar {

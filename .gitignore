@@ -8,3 +8,16 @@ dist-ssr
 
 tsconfig.tsbuildinfo
 *.tsbuildinfo
+
+# --- Guard against the tsc-emit traps (see README "Build hygiene") ----------
+# `tsc -b --noEmit false` used to emit JS next to the sources. Vitest then
+# resolves the stale .js instead of the .ts/.tsx, so code edits look like they
+# did nothing. Never commit emitted JavaScript from src/.
+src/**/*.js
+src/**/*.js.map
+src/**/*.d.ts
+# That same command emitted a root vite.config.js, which Vite resolves BEFORE
+# vite.config.ts — silently shadowing the real config.
+/vite.config.js
+# NOTE: postcss.config.js and tailwind.config.js are legitimately JS (they have
+# no .ts counterparts) and must be kept.

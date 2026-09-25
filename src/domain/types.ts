@@ -9,6 +9,41 @@
 export type Role = 'traveller' | 'guardian';
 
 /* ------------------------------------------------------------------ */
+/* Emergency contact                                                   */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The one and only place the emergency number is written down.
+ *
+ * It used to be duplicated as a literal inside several copy strings, which
+ * meant a passive signal could end up next to a dialable number the traveller
+ * never asked for. Everything that needs to show it imports this constant, and
+ * only an *explicit* SOS surface is allowed to render it as a `tel:` link.
+ */
+export const EMERGENCY_NUMBER = '112';
+
+/** The only origins allowed to surface a dialable emergency number. */
+export const EMERGENCY_NUMBER_ORIGINS = ['explicit_sos', 'demo_control'] as const;
+
+/**
+ * How an incident came to exist. This gates the emergency-call affordance: only
+ * a traveller-initiated record may surface a dialable number. A passively
+ * detected signal can never reach it.
+ *
+ * `demo_control` is the demo panel standing in for the traveller pressing the
+ * button, so it is deliberately treated as traveller-initiated.
+ */
+export type IncidentOrigin = 'explicit_sos' | 'passive_signal' | 'demo_control';
+
+/**
+ * Fails closed: an incident with no recorded origin (persisted by an older
+ * build) does not get a dial affordance.
+ */
+export function originMayDial(origin: IncidentOrigin | undefined): boolean {
+  return (EMERGENCY_NUMBER_ORIGINS as readonly string[]).includes(origin ?? '');
+}
+
+/* ------------------------------------------------------------------ */
 /* Risk                                                                */
 /* ------------------------------------------------------------------ */
 
@@ -21,8 +56,20 @@ export type RiskSignalCode =
   | 'repeated_deviation'
   | 'missed_checkin'
   | 'repeated_missed_checkin'
+  | 'location_lost'
+  | 'location_stale'
   | 'explicit_sos'
-  | 'safe_confirmation';
+  | 'safe_confirmation'
+  /** Emitted when unrelated families of signal stack up (see RISK_WEIGHTS). */
+  | 'compounding'
+  /** Emitted when the passive ceiling clamps the score, so the ledger reconciles. */
+  | 'passive_ceiling'
+  /** Emitted when the absolute 100 cap bites, so the ledger reconciles. */
+  | 'score_ceiling'
+  /** Emitted when the band floor lifts a low score, so the ledger reconciles. */
+  | 'band_floor'
+  /** Emitted when an explicit SOS pins the score into CRITICAL. */
+  | 'sos_floor';
 
 export interface RiskReason {
   code: RiskSignalCode;
@@ -136,6 +183,16 @@ export interface Journey {
   guardianAcknowledgedAt: number | null;
   incidentId: string | null;
 
+  /**
+   * "I need help" used to be a fire-and-forget event with no follow-up state,
+   * so nothing happened if the traveller never got an answer. Requesting help
+   * now opens a grace window; if it lapses without the traveller confirming
+   * safety, the request escalates to the trusted circle.
+   */
+  helpRequestedAt: number | null;
+  /** When the help request escalates if still unanswered. */
+  helpDeadlineAt: number | null;
+
   pausedAt: number | null;
   endedAt: number | null;
   /** Set when the journey was ended or resolved after an alert. */
@@ -207,6 +264,11 @@ export interface Incident {
   id: string;
   /** Human-facing code, e.g. SRK-1042 */
   code: string;
+  /**
+   * What created this record. Gates the emergency-call affordance — a passive
+   * signal must never surface a dialable emergency number.
+   */
+  origin?: IncidentOrigin;
   journeyId: string | null;
   travellerId: string;
   travellerName: string;
@@ -231,6 +293,13 @@ export interface Incident {
     emergencyServicesContacted: false;
     note: string;
     localEmergencyNumberLabel: string;
+    /**
+     * Set only on an explicit-SOS record. The UI renders a `tel:` link for it
+     * and nothing else may — see EMERGENCY_NUMBER_ORIGINS.
+     */
+    emergencyNumber?: string;
+    /** Records that the traveller pressed the dial affordance themselves. */
+    emergencyNumberDialledAt?: number | null;
   };
 }
 

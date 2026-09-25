@@ -43,7 +43,7 @@ import { RiskBandLadder, RiskWhyPanel } from '@/components/domain/RiskWhyPanel';
 import { HelpPanel } from '@/components/domain/HelpPanel';
 import { useAppState, useCircle, store } from '@/store/hooks';
 import { formatClock, formatCountdown, formatDurationMinutes, formatRelative, pluralise} from '@/lib/format';
-import { linkQuality, estimatedArrivalAt, remainingMinutes } from '@/domain/journey';
+import { effectiveNow, linkQuality, estimatedArrivalAt, remainingMinutes } from '@/domain/journey';
 import { cn } from '@/lib/cn';
 
 export function ActiveJourney() {
@@ -71,11 +71,18 @@ export function ActiveJourney() {
   }
 
   const assessment = journey.risk;
-  const remaining = journey.checkIn.expiresAt ? journey.checkIn.expiresAt - now : null;
-  const checkInDue = journey.checkIn.dueAt ? journey.checkIn.dueAt - now : null;
-  const quality = linkQuality(journey, now);
   const paused = journey.status === 'PAUSED';
-  const lateMinutes = Math.max(0, Math.round((now - estimatedArrivalAt(journey, now)) / 60_000));
+  /*
+   * Every visible timer measures against `effectiveNow`, which freezes at the
+   * moment a journey was paused. Using the raw store clock here meant the
+   * countdowns kept draining while the journey was supposedly on hold, so
+   * "paused" looked like it was doing nothing.
+   */
+  const clock = effectiveNow(journey, now);
+  const remaining = journey.checkIn.expiresAt ? journey.checkIn.expiresAt - clock : null;
+  const checkInDue = journey.checkIn.dueAt ? journey.checkIn.dueAt - clock : null;
+  const quality = linkQuality(journey, now);
+  const lateMinutes = Math.max(0, Math.round((clock - estimatedArrivalAt(journey, clock)) / 60_000));
 
   return (
     <div className="space-y-5">

@@ -6,7 +6,7 @@
  * Exit Mode is an escape aid, not an emergency action.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Mic,
   MicOff,
@@ -23,6 +23,7 @@ import { Button } from '@/components/ui/primitives';
 import { Avatar } from '@/components/ui/primitives';
 import { useAppState, store } from '@/store/hooks';
 import { formatCountdown } from '@/lib/format';
+import { isVoiceSupported, speakLine, stopVoice } from '@/services/voice';
 import { cn } from '@/lib/cn';
 
 export const EXIT_CALLERS = [
@@ -201,6 +202,38 @@ function ActiveCallScreen({
   const mm = String(Math.floor(live / 60)).padStart(2, '0');
   const ss = String(live % 60).padStart(2, '0');
 
+  /*
+   * Speak the scripted lines. Speech begins after Accept, which is a user
+   * gesture, so autoplay policy does not block it. `speechSupported` is only
+   * used to keep the copy honest — the screen must not promise audio on a
+   * platform that cannot produce it, and it must never break without it.
+   */
+  const speechSupported = useMemo(() => isVoiceSupported(), []);
+  const spokenRef = useRef(0);
+  const lineIndex = Math.min(SCRIPT_LINES.length - 1, Math.floor(live / 4));
+
+  // Keep the latest volume settings without re-triggering an utterance.
+  const volumeRef = useRef(speaker ? 1 : 0.45);
+  volumeRef.current = speaker ? 1 : 0.45;
+
+  useEffect(() => {
+    if (muted) {
+      // Mute must cancel instantly, and must not resume on its own.
+      stopVoice();
+      return;
+    }
+    if (spokenRef.current === lineIndex + 1) return;
+    spokenRef.current = lineIndex + 1;
+    speakLine(SCRIPT_LINES[lineIndex].text, {
+      rate: 0.98,
+      pitch: 1,
+      volume: volumeRef.current,
+    });
+  }, [muted, lineIndex]);
+
+  // Leaving the screen (ending the call, navigating away) stops the voice.
+  useEffect(() => () => stopVoice(), []);
+
   return (
     <div
       className="fixed inset-0 z-[70] flex flex-col bg-ink-950 text-white"
@@ -223,12 +256,20 @@ function ActiveCallScreen({
         <Avatar name={caller.label} size="lg" tone="brand" className="h-20 w-20 text-xl" />
         <div className="text-center">
           <h2 className="text-xl font-bold">{caller.label}</h2>
-          <p className="mt-0.5 text-[12.5px] text-white/60">Connected · simulated audio</p>
+          <p className="mt-0.5 text-[12.5px] text-white/60">
+            {muted
+              ? 'Connected · muted'
+              : speechSupported
+                ? 'Connected · simulated voice'
+                : 'Connected · text only on this device'}
+          </p>
         </div>
 
         <div className="mt-2 w-full max-w-md space-y-2.5">
           <p className="text-center text-[11px] font-semibold uppercase tracking-[0.1em] text-white/40">
-            Call transcript (scripted — nothing is heard or recorded)
+            {speechSupported
+              ? 'Call transcript (scripted — spoken by your device, never recorded)'
+              : 'Call transcript (scripted — your device cannot speak this, nothing is recorded)'}
           </p>
           {visibleLines.map((line, index) => (
             <div

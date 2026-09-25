@@ -14,6 +14,18 @@ export function TravellerIncidents() {
   const active = incidents.find((i) => i.status !== 'RESOLVED');
   const past = incidents.filter((i) => i.id !== active?.id);
 
+  /*
+   * Resolve the record before linking. `journey.incidentId` used to dangle
+   * after the incident was deleted, and the link was rendered on raw truthiness
+   * of that id — so "Open current incident" navigated to an incident that no
+   * longer existed. The store now clears the id on delete and repairs stale
+   * references on hydrate; this is the third layer, and it also covers state
+   * restored from storage by an older build.
+   */
+  const currentIncident = journey?.incidentId
+    ? incidents.find((i) => i.id === journey.incidentId) ?? null
+    : null;
+
   return (
     <div className="space-y-5">
       <PageHeader
@@ -21,9 +33,9 @@ export function TravellerIncidents() {
         title="Incidents"
         description="An incident is a record SURAKSHA created when safety signals stacked up or SOS was triggered. It is a timeline plus evidence — not a conclusion."
         actions={
-          journey?.incidentId ? (
+          currentIncident ? (
             <Link
-              to={`/traveller/incidents/${journey.incidentId}`}
+              to={`/traveller/incidents/${currentIncident.id}`}
               className="inline-flex h-10 items-center gap-2 rounded-xl bg-critical-600 px-3.5 text-[13px] font-semibold text-white hover:bg-critical-700"
             >
               Open current incident

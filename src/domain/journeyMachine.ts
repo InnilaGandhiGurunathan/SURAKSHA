@@ -11,6 +11,13 @@
 
 import type { Journey, JourneyStatus, RiskAssessment, RiskBand } from './types';
 import { scoreRisk, type RiskInputs } from './riskEngine';
+import {
+  LOCATION_STALE_AFTER_MS,
+  effectiveNow,
+  estimatedArrivalAt,
+  minutesLate,
+  remainingMinutes as remainingJourneyMinutes,
+} from './journey';
 
 export type JourneyAction =
   | { type: 'START'; journey: Journey }
@@ -36,10 +43,24 @@ export function maxBand(a: RiskBand, b: RiskBand): RiskBand {
 }
 
 export function journeyToRiskInputs(journey: Journey, now: number): RiskInputs {
-  const pastExpectedArrival = now > journey.expectedArrivalAt;
-  const lateMinutes = pastExpectedArrival
-    ? Math.max(0, (now - journey.expectedArrivalAt) / 60_000)
-    : 0;
+  /*
+   * Lateness is measured against the *estimated* arrival — planned arrival plus
+   * time lost to detours — and against the frozen clock while paused. Using the
+   * planned arrival alone meant a diversion could never make the traveller late,
+   * so a long deviation produced no late-arrival signal.
+   */
+  const at = effectiveNow(journey, now);
+  const eta = estimatedArrivalAt(journey, at);
+  const pastExpectedArrival = at > eta;
+  const lateMinutes = pastExpectedArrival ? Math.max(0, (at - eta) / 60_000) : 0;
+
+  /*
+   * Location is now a first-class signal. "Lost" is an explicit outage; "stale"
+   * is a stopped feed while the device is still reachable. Only one is charged.
+   */
+  const locationLost = !journey.locationAvailable;
+  const locationAge = Math.max(0, at - journey.lastPositionAt);
+  const locationStale = !locationLost && locationAge > LOCATION_STALE_AFTER_MS;
 
   return {
     pastExpectedArrival,
@@ -49,6 +70,8 @@ export function journeyToRiskInputs(journey: Journey, now: number): RiskInputs {
     deviationActive: journey.deviationActive,
     missedCheckInCount: journey.checkIn.missedCount,
     completedCheckInCount: journey.checkIn.completedCount,
+    locationLost,
+    locationStale,
     sosActive: journey.risk.reasons.some((r) => r.code === 'explicit_sos'),
     safeConfirmationCount: journey.safeConfirmationCount ?? 0,
   };
@@ -91,10 +114,10 @@ export function reduceJourney(journey: Journey, action: JourneyAction, now: numb
       return action.journey;
 
     case 'TICK': {
-      // A paused journey keeps its risk assessment live but does not accrue lateness.
+      // A paused journey keeps its risk assessment live but its timers frozen,
+      // so lateness is measured against the estimated (detour-aware) arrival.
       if (next.status !== 'PAUSED') {
-        const late = now > next.expectedArrivalAt;
-        next.lateMinutes = late ? Math.max(0, (now - next.expectedArrivalAt) / 60_000) : 0;
+        next.lateMinutes = minutesLate(next, now);
       }
       break;
     }
@@ -162,10 +185,13 @@ export function reduceJourney(journey: Journey, action: JourneyAction, now: numb
 
     case 'RESUME': {
       next.status = 'ACTIVE';
+      // Shift every deadline the pause was holding back, so resuming does not
+      // immediately fire a check-in or escalate a help request that was frozen.
       const pausedFor = next.pausedAt ? now - next.pausedAt : 0;
       next.expectedArrivalAt += pausedFor;
       if (next.checkIn.dueAt) next.checkIn.dueAt += pausedFor;
       if (next.checkIn.expiresAt) next.checkIn.expiresAt += pausedFor;
+      if (next.helpDeadlineAt) next.helpDeadlineAt += pausedFor;
       next.pausedAt = null;
       break;
     }
@@ -174,6 +200,9 @@ export function reduceJourney(journey: Journey, action: JourneyAction, now: numb
       next.status = 'ENDED';
       next.endedAt = now;
       next.checkIn = { ...next.checkIn, state: 'IDLE', dueAt: null, expiresAt: null, requestedAt: null };
+      // An ended journey has nothing left to follow up on.
+      next.helpRequestedAt = null;
+      next.helpDeadlineAt = null;
       next.resolvedBy = bandRank(next.risk.band) >= bandRank('ALERT') ? 'resolved_after_alert' : 'ended_normally';
       break;
     }
@@ -195,6 +224,7 @@ export interface JourneyIntent {
     | 'none'
     | 'request_checkin'
     | 'miss_checkin'
+    | 'escalate_help'
     | 'escalate_guardian'
     | 'late_arrival'
     | 'risk_zone_entered'
@@ -208,6 +238,16 @@ export function evaluateIntents(journey: Journey, now: number): JourneyIntent[] 
 
   const due = journey.checkIn.dueAt;
   const expires = journey.checkIn.expiresAt;
+
+  /*
+   * A help request that nobody answered inside its grace window escalates. This
+   * is evaluated here, with the clock, rather than once when the button is
+   * pressed — otherwise "I need help" stayed a fire-and-forget event that did
+   * nothing if the traveller never heard back.
+   */
+  if (journey.helpDeadlineAt && now >= journey.helpDeadlineAt) {
+    intents.push({ kind: 'escalate_help' });
+  }
 
   // Any state except "currently being asked" can start a new check-in cycle —
   // a missed check-in must not silence every later prompt.
@@ -224,9 +264,15 @@ export function evaluateIntents(journey: Journey, now: number): JourneyIntent[] 
 export function timeProgress(journey: Journey, now: number): number {
   const total = journey.expectedArrivalAt - journey.startedAt;
   if (total <= 0) return 1;
-  return Math.max(0, Math.min(1, (now - journey.startedAt) / total));
+  // A paused journey does not creep forward along the route.
+  return Math.max(0, Math.min(1, (effectiveNow(journey, now) - journey.startedAt) / total));
 }
 
+/**
+ * Kept for callers of this module. Delegates to `@/domain/journey` so there is
+ * exactly one ETA implementation and it cannot drift out of step with the one
+ * the risk engine scores against.
+ */
 export function remainingMinutes(journey: Journey, now: number): number {
-  return Math.max(0, Math.round((journey.expectedArrivalAt - now) / 60_000));
+  return remainingJourneyMinutes(journey, now);
 }

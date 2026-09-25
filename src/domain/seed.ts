@@ -536,7 +536,7 @@ export const LESSONS_SEED: Lesson[] = [
         ],
         answerIndex: 1,
         explanation:
-          'Primary, then backup, then your own emergency workflow. SURAKSHA does not contact emergency services on your behalf.',
+          'Primary, then backup, then your own emergency workflow. SURAKSHA never dials emergency services for you — you always make that call yourself.',
       },
     ],
   },
@@ -634,7 +634,7 @@ export const LESSONS_SEED: Lesson[] = [
         ],
         answerIndex: 1,
         explanation:
-          'SURAKSHA does not replace emergency services and never auto-dispatches based on a risk score.',
+          'SURAKSHA does not replace emergency services, never dials them for you, and never auto-dispatches based on a risk score.',
       },
       {
         id: 'q2',
