@@ -205,7 +205,22 @@ export class SurakshaStore {
   /* ---------------------------------------------------------------- */
 
   hydrate(): void {
-    if (this.hydrated) return;
+    /*
+     * The load itself must happen exactly once — a second pass would overwrite
+     * live in-memory state with whatever was last written to storage.
+     *
+     * The clock, however, has to restart on every mount. React 18 StrictMode
+     * (development only) mounts, unmounts and remounts the tree: the discarded
+     * mount's cleanup calls stop(), and this guard used to return before
+     * start() ran again. The interval stayed dead, so the virtual clock froze —
+     * no simulated movement, no check-in countdown, no ETA drift, and the demo
+     * controls that ride on a tick never fired. start() is idempotent, so
+     * calling it here is always safe.
+     */
+    if (this.hydrated) {
+      this.start();
+      return;
+    }
     this.hydrated = true;
 
     // Discard state written by an older build instead of half-reading it.
@@ -1832,16 +1847,37 @@ export class SurakshaStore {
       this.set({ journey: nextJourney, now });
       newEvents.forEach((e) => this.logEvent(e));
       this.handleBandChange(prevBandForFinalFanout, nextJourney, now);
+      // Exit Mode is armed *during* a journey, so it has to advance here too —
+      // before the return, not after it.
+      this.advanceExitMode(now);
       this.persist();
       return;
     }
 
-    // Exit Mode countdown even without a journey.
+    this.advanceExitMode(now);
+
+    this.set({ now });
+    this.persist();
+  }
+
+  /**
+   * Advances the simulated Exit Mode call.
+   *
+   * Runs on every tick, with or without a journey. This used to sit after the
+   * active-journey early return, so a call armed mid-journey counted down to
+   * zero and then never rang — which is the only situation a traveller actually
+   * uses Exit Mode in.
+   */
+  private advanceExitMode(now: number): void {
     const exit = this.state.exitMode;
-    if (exit?.active && !exit.ringing && !exit.answered && !exit.declined && now >= exit.ringsAt) {
+    if (!exit?.active) return;
+
+    if (!exit.ringing && !exit.answered && !exit.declined && now >= exit.ringsAt) {
       this.set({ exitMode: { ...exit, ringing: true } });
+      return;
     }
-    if (exit?.active && exit.ringing && now >= exit.ringsAt + 45_000) {
+
+    if (exit.ringing && now >= exit.ringsAt + 45_000) {
       // Missed simulated call — reset so the demo can try again.
       this.set({ exitMode: { ...exit, active: false, ringing: false } });
       this.pushToast({
@@ -1850,9 +1886,6 @@ export class SurakshaStore {
         tone: 'neutral',
       });
     }
-
-    this.set({ now });
-    this.persist();
   }
 
   /* ---------------------------------------------------------------- */
