@@ -310,7 +310,7 @@ export function SectionHeading({
   return (
     <div className={cn('mb-3 flex flex-wrap items-end justify-between gap-2', className)}>
       <div>
-        <h2 className="text-[15px] font-bold tracking-tight text-ink-900">{title}</h2>
+        <h2 className="text-[18px] font-semibold tracking-tight text-ink-900">{title}</h2>
         {description ? <p className="mt-0.5 text-[12.5px] text-ink-500">{description}</p> : null}
       </div>
       {action}
