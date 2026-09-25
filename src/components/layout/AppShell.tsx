@@ -10,7 +10,8 @@ import { useGuardianAlerts } from '@/store/hooks';
 
 import { useEffect, useState, type ReactNode } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { ChevronRight, FlaskConical, Menu, ShieldCheck, X } from 'lucide-react';
+import { ChevronRight, FlaskConical, Menu, X } from 'lucide-react';
+import { LogoMark } from '@/components/ui/Logo';
 import { cn } from '@/lib/cn';
 import { navForRole, type NavItem } from './nav';
 import { useAppState, store } from '@/store/hooks';
@@ -46,9 +47,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     return (
       <div className="grid min-h-screen place-items-center bg-ink-50">
         <div className="flex flex-col items-center gap-3">
-          <span className="grid h-12 w-12 place-items-center rounded-2xl bg-brand-600 text-white shadow-raised">
-            <ShieldCheck size={22} />
-          </span>
+          <LogoMark size="lg" />
           <p className="text-sm font-semibold text-ink-600">Loading SURAKSHA…</p>
         </div>
       </div>
@@ -199,9 +198,7 @@ function Sidebar({
   return (
     <aside className="sticky top-0 hidden h-screen w-[264px] shrink-0 flex-col border-r border-ink-200 bg-white lg:flex xl:w-[276px]">
       <div className="flex items-center gap-2.5 px-5 py-5">
-        <span className="grid h-9 w-9 place-items-center rounded-xl bg-brand-600 text-white shadow-sm">
-          <ShieldCheck size={18} />
-        </span>
+        <LogoMark size="md" />
         <span className="min-w-0">
           <span className="block text-[15px] font-bold leading-tight tracking-tight text-ink-900">SURAKSHA</span>
           <span className="block text-[10.5px] font-semibold uppercase tracking-[0.1em] text-ink-400">
@@ -274,9 +271,7 @@ function TopBar({
     <header className="sticky top-0 z-30 border-b border-ink-200 bg-white/85 backdrop-blur">
       <div className="mx-auto flex w-full max-w-[1180px] items-center gap-3 px-4 py-3 sm:px-6">
         <span className="flex items-center gap-2 lg:hidden">
-          <span className="grid h-8 w-8 place-items-center rounded-lg bg-brand-600 text-white">
-            <ShieldCheck size={16} />
-          </span>
+          <LogoMark size="sm" />
           <span className="text-[14.5px] font-bold tracking-tight text-ink-900">SURAKSHA</span>
         </span>
 

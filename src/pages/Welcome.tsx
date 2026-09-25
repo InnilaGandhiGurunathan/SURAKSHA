@@ -22,6 +22,7 @@ import {
   Users,
 } from 'lucide-react';
 import { Button } from '@/components/ui/primitives';
+import { LogoLockup } from '@/components/ui/Logo';
 import { store } from '@/store/hooks';
 import { EMERGENCY_NUMBER } from '@/domain/types';
 
@@ -127,12 +128,7 @@ export function Welcome() {
     <div className="mx-auto max-w-3xl space-y-10 pb-6">
       {/* Hero */}
       <section className="flex flex-col items-center px-2 pt-6 text-center sm:pt-10">
-        <span className="flex items-center gap-2.5">
-          <span className="grid h-11 w-11 place-items-center rounded-2xl bg-brand-600 text-white shadow-raised">
-            <ShieldCheck size={22} />
-          </span>
-          <span className="text-[15px] font-bold tracking-tight text-ink-900">SURAKSHA</span>
-        </span>
+        <LogoLockup />
         <p className="mt-5 text-[11px] font-bold uppercase tracking-[0.14em] text-ink-400">
           Safety Before SOS
         </p>
