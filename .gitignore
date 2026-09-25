@@ -21,3 +21,7 @@ src/**/*.d.ts
 /vite.config.js
 # NOTE: postcss.config.js and tailwind.config.js are legitimately JS (they have
 # no .ts counterparts) and must be kept.
+
+# Browser test output
+/test-results/
+/playwright-report/

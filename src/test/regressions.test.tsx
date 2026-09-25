@@ -347,7 +347,7 @@ describe('reported bugs', () => {
   });
 
   /* ------------------------------------------------------------------ */
-  /* #3 — Exit Mode speaks, and mute means silent                        */
+  /* #3 — Exit Mode speaks independently of microphone mute                        */
   /* ------------------------------------------------------------------ */
 
   it('#3 rings a call armed during an active journey, not only on an idle app', () => {
@@ -376,7 +376,7 @@ describe('reported bugs', () => {
     expect(speak).not.toHaveBeenCalled();
   });
 
-  it('#3 speaks the scripted line once answered, and mute cancels immediately', async () => {
+  it('#3 keeps caller speech playing when the simulated microphone is muted', async () => {
     const { speak, cancel } = installSpeech();
     appStore.startExitMode({ delaySeconds: 10, contactId: 'ct-priya' });
     tick(3);
@@ -389,6 +389,11 @@ describe('reported bugs', () => {
 
     const cancelsBefore = cancel.mock.calls.length;
     await userEvent.click(screen.getAllByRole('button', { name: /Mute/i })[0]);
-    expect(cancel.mock.calls.length).toBeGreaterThan(cancelsBefore);
+    expect(cancel.mock.calls.length).toBe(cancelsBefore);
+    expect(speak).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('button', { name: 'Unmute' }).getAttribute('aria-pressed')).toBe('true');
+    await userEvent.click(screen.getByRole('button', { name: 'Unmute' }));
+    expect(cancel.mock.calls.length).toBe(cancelsBefore);
+    expect(speak).toHaveBeenCalledTimes(1);
   });
 });

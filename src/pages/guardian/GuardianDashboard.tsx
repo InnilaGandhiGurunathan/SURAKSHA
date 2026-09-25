@@ -1,3 +1,5 @@
+import { guardianCanMonitor } from '@/domain/guardianScope';
+import { useGuardianAlerts } from '@/store/hooks';
 /**
  * Guardian Dashboard — desktop-first monitoring surface.
  * Reads the same event log the traveller produces; adds acknowledgement.
@@ -42,7 +44,11 @@ import { toneForBand, TONES } from '@/lib/status';
 import { cn } from '@/lib/cn';
 
 export function GuardianDashboard() {
-  const { journey, events, alerts, now, incidents, receipts } = useAppState();
+  const { journey: allJourney, events: allEvents, now, incidents, receipts, guardianProfile } = useAppState();
+  const alerts = useGuardianAlerts();
+  const journey = allJourney && guardianCanMonitor(allJourney, guardianProfile) ? allJourney : null;
+  const events = allEvents.filter((e) => journey && e.journeyId === journey.id &&
+    (e.userId === journey.travellerId || e.userId === guardianProfile.id));
   const { primary, backup } = useCircle();
 
   const active = journey && journey.status !== 'ENDED' ? journey : null;
@@ -216,7 +222,7 @@ export function GuardianDashboard() {
                   <Kpi
                     label="Check-ins"
                     value={`${active.checkIn.completedCount} / ${active.checkIn.completedCount + active.checkIn.missedCount}`}
-                    hint={active.checkIn.missedCount ? `${active.checkIn.missedCount} missed` : 'none missed'}
+                    hint={active.checkIn.lastCompletedAt ? `Latest: ${formatClock(active.checkIn.lastCompletedAt)}` : 'No check-in yet'}
                   />
                   <Kpi
                     label="Acknowledgement"
@@ -356,6 +362,22 @@ export function GuardianDashboard() {
           </div>
         </div>
       )}
+
+      {journey ? (
+        <Card>
+          <CardHeader title="Latest check-in" subtitle={journey.travellerName} icon={<CheckCircle2 size={16} />} />
+          <CardBody>
+            <p role="status" className="text-[13px] font-semibold text-ink-800">
+              {journey.checkIn.state === 'REQUESTED' ? 'Awaiting response' :
+                journey.checkIn.state === 'MISSED' ? 'Check-in missed — safety not confirmed' :
+                journey.checkIn.lastCompletedAt ? 'Traveller confirmed safe' : 'No check-in yet'}
+            </p>
+            {journey.checkIn.lastCompletedAt ? <p className="mt-1 text-[12px] text-ink-500">
+              Last confirmed: {formatClock(journey.checkIn.lastCompletedAt)} · {formatRelative(journey.checkIn.lastCompletedAt, now)}
+            </p> : null}
+          </CardBody>
+        </Card>
+      ) : null}
 
       <SectionHeading
         title="Role reminder"

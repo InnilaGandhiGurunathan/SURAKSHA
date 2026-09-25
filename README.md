@@ -151,6 +151,10 @@ Measured behaviour (pinned by tests):
 | SOS alone | 75 | CRITICAL |
 | One deviation, then “I'm safe” | 5 | SAFE |
 
+### Arrival timing
+
+Lateness is measured against the agreed `expectedArrivalAt`, not the moving detour-adjusted ETA shown as an estimate. The existing +10 late-arrival weight, WATCH floor, recovery rules and passive ceiling are unchanged: delay updates the reason text but is not a new per-minute penalty. A check-in confirms safety, not arrival. Ending as arrived records `arrivedAt` and the final delay, then resolves live risk. Pauses retain their existing deadline-freezing behavior.
+
 ### Simulation instead of GPS
 A single virtual clock starts at **10:42 PM** so the seeded scenario reads exactly like the demo script. `store.tick()` advances the clock, moves the traveller along the corridor, raises check-ins, detects misses, streams location updates and re-assesses risk on every tick. Demo speed is 1× / 2× / 4× / 8×. The map is an interactive SVG surface (pan, wheel-zoom, follow-cam, legend) so nothing depends on an external tile service.
 
@@ -175,12 +179,14 @@ npm run dev        # http://localhost:5173  (binds 0.0.0.0)
 ```
 
 ```bash
-npm test           # 38 tests: risk engine, engine simulation, demo flow, screen mounting
+npm test           # unit/component regressions, including both role views
 npm run build      # type-check + production bundle
 npm run preview    # serve the build
+npx playwright install chromium
+npm run test:e2e    # real-browser flows, including two-tab synchronization
 ```
 
-No API keys, no accounts, no network calls at runtime. State lives in `localStorage` under `suraksha.v1.*`.
+No API keys, no accounts, no network calls at runtime. Metadata lives in `localStorage` under `suraksha.v1.*`; evidence bytes are stored in IndexedDB (`suraksha.evidence.v1`). Tabs on the same browser origin synchronize committed journey/check-in/alert updates. There is no cross-device service.
 
 ---
 
@@ -190,7 +196,7 @@ No API keys, no accounts, no network calls at runtime. State lives in `localStor
 2. **Start journey (10:42 PM)** → *Journey started. Your Guardian has been notified.* Land on **Active Journey**: 🟢 SAFE, ETA 30 min, live map, check-in countdown.
 3. **Move off route** → 🟡 **ROUTE CHANGED** / “Your route appears different from the expected path. Everything okay?” and the guardian side raises WATCH. Nothing is declared dangerous.
 4. **Send + miss the check-in** → 🟠 **SAFETY CHECK-IN MISSED**, +25, an incident record is created and the circle is alerted. The copy stays honest.
-5. **Trigger Exit Mode** → 10-second countdown → full-screen simulated incoming call → **Accept** → the caller **speaks** the scripted line through the device (labelled *Simulated call*); **Mute** silences it instantly.
+5. **Trigger Exit Mode** → 10-second countdown → full-screen simulated incoming call → **Accept** → the caller **speaks** the scripted line through the device (labelled *Simulated call*); **Mute** changes the simulated microphone state without interrupting the caller. The **?** button opens dismissible usage help; no real microphone is accessed.
 6. **Trigger Quick SOS** (*one tap*) → 🔴 **CRITICAL**, score **95** (20 route + 25 missed + 50 SOS), Incident **#SRK-1043** with location, guardian notification status, evidence status, a real **Call 112 now** link the traveller presses themselves, and the honest handoff note.
 6b. **Press “I NEED HELP”** on a check-in → the help panel opens with a grace countdown, and the guardian's role view shows the help pop-up with the same countdown. Leave it unanswered and it escalates to the whole circle on its own.
 7. **Switch to the Guardian dashboard** (role switcher) → same timeline, risk explanation, **ACKNOWLEDGE** → `guardian_acknowledged` lands in the log and on the incident.
@@ -216,10 +222,15 @@ Demo roles: **Traveller — Aarav Sharma**, **Guardian — Rohan Mehta**, backup
 ## Honest limitations
 
 - Location is **simulated** and the map is fictional; coordinates are derived from map geometry for readability.
-- Evidence files are generated locally, never uploaded; the integrity hash proves *the stored file has not changed since hashing* — it does not prove what happened.
+- Evidence can be selected from the device or generated as a demo note. Bytes are persisted locally in IndexedDB, never uploaded to a server. Supported images, PDF, text, audio and video are limited to 10 MB each; active HTML/SVG/executable files are rejected. Downloads remain available after reload. Older metadata-only attachments cannot recover their original bytes and must be reattached. The hash can detect changes to the file; it does not prove what happened.
 - Notifications are modelled locally with delivery receipts; no SMS, push or telephony provider is wired up.
 - Exit Mode does not place real calls; it is an escape aid, not an emergency action. It *does* speak its scripted lines through the device's own Web Speech API once the traveller accepts the call, and falls back to text-only silence wherever speech synthesis is unavailable. There is deliberately **no ringtone**: it would have to start from a timer rather than a user gesture, and browsers would block it.
 - **112 is offered, never dialled.** An explicit SOS surfaces a real `tel:` link that the traveller presses themselves, and the incident records that they did. No passively detected signal can reach a number — the gate lives in the domain layer, and a record with no recorded origin fails closed.
 - **The WATCH floor is a deliberate product decision**, not an accident: it keeps WATCH meaning “confirm with the traveller” while making sure one open signal is never hidden behind a SAFE headline. If you disagree with it, remove the `band_floor` block in `riskEngine.ts` — nothing else depends on it.
 - No authentication in the prototype: a demo role switcher stands in for it.
 - SURAKSHA is a coordination tool. In a real emergency, call your local emergency service (112 in India).
+
+
+## Functional fixes and verification
+
+See [the implementation and verification report](docs/functional-fixes.md) for root causes, local database changes, test coverage and prototype limitations.

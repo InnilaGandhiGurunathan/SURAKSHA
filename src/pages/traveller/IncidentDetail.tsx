@@ -3,7 +3,7 @@
  * it deliberately did not do. Includes evidence integrity hashing.
  */
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -36,7 +36,7 @@ import { PageHeader } from '@/components/domain/blocks';
 import { EventTimeline } from '@/components/domain/EventTimeline';
 import { useAppState, store } from '@/store/hooks';
 import { formatBytes, formatClock, formatDateTime, shortHash } from '@/lib/format';
-import { createEvidenceRecord, syntheticVoiceNoteBuffer } from '@/services/evidence';
+import { createEvidenceRecord, syntheticVoiceNoteBuffer, readEvidenceFile, EVIDENCE_MIME_TYPES } from '@/services/evidence';
 import { describePosition } from '@/store/store';
 import { toneForSeverity } from '@/lib/status';
 import { cn } from '@/lib/cn';
@@ -46,6 +46,10 @@ export function IncidentDetail({ role }: { role: 'traveller' | 'guardian' }) {
   const { incidents, events, now, contacts, journey } = useAppState();
   const [privacyOpen, setPrivacyOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [feedback, setFeedback] = useState<{ error: boolean; message: string } | null>(null);
+  const urls = useRef<string[]>([]);
+  useEffect(() => () => { urls.current.forEach((url) => URL.revokeObjectURL(url)); }, []);
+  const reportError = (error: unknown) => setFeedback({ error: true, message: error instanceof Error ? error.message : 'Could not save evidence. Please try again.' });
 
   const incident = incidents.find((i) => i.id === incidentId);
 
@@ -79,7 +83,9 @@ export function IncidentDetail({ role }: { role: 'traveller' | 'guardian' }) {
   const positives = incident.riskReasons.filter((r) => r.delta > 0);
 
   const attachDemoEvidence = async () => {
+    if (busy) return;
     setBusy(true);
+    setFeedback(null);
     try {
       const buffer = syntheticVoiceNoteBuffer(3);
       const record = await createEvidenceRecord({
@@ -91,16 +97,21 @@ export function IncidentDetail({ role }: { role: 'traveller' | 'guardian' }) {
         // Stamped on the simulator's clock so it matches the incident timeline.
         at: now,
       });
-      store.attachEvidence(record);
+      await store.saveEvidence(incident.id, record, buffer);
+      setFeedback({ error: false, message: 'Evidence attached and saved on this device.' });
+    } catch (error) {
+      reportError(error);
     } finally {
       setBusy(false);
     }
   };
 
   const attachFile = async (file: File) => {
+    if (busy) return;
     setBusy(true);
+    setFeedback(null);
     try {
-      const buffer = await file.arrayBuffer();
+      const buffer = await readEvidenceFile(file);
       const record = await createEvidenceRecord({
         fileName: file.name,
         mimeType: file.type || 'application/octet-stream',
@@ -109,7 +120,10 @@ export function IncidentDetail({ role }: { role: 'traveller' | 'guardian' }) {
         description: 'Attached locally. Nothing is uploaded in this prototype.',
         at: now,
       });
-      store.attachEvidence(record);
+      await store.saveEvidence(incident.id, { ...record, simulated: false }, buffer);
+      setFeedback({ error: false, message: 'Evidence attached and saved on this device.' });
+    } catch (error) {
+      reportError(error);
     } finally {
       setBusy(false);
     }
@@ -241,6 +255,9 @@ export function IncidentDetail({ role }: { role: 'traveller' | 'guardian' }) {
                       Attach file
                       <input
                         type="file"
+                        aria-label="Attach evidence file"
+                        accept={EVIDENCE_MIME_TYPES.join(',')}
+                        disabled={busy}
                         className="sr-only"
                         onChange={(e) => {
                           const file = e.target.files?.[0];
@@ -254,6 +271,8 @@ export function IncidentDetail({ role }: { role: 'traveller' | 'guardian' }) {
               }
             />
             <CardBody className="space-y-3">
+              {feedback ? <p role={feedback.error ? 'alert' : 'status'} className={feedback.error ? 'text-sm text-critical-700' : 'text-sm text-safe-700'}>{feedback.message}</p> : null}
+              <p className="text-[11.5px] text-ink-500">Images, PDF, text, audio and video · up to 10 MB per file.</p>
               {incident.evidence.length ? (
                 <ul className="space-y-2">
                   {incident.evidence.map((item) => (
@@ -266,13 +285,27 @@ export function IncidentDetail({ role }: { role: 'traveller' | 'guardian' }) {
                         {role === 'traveller' ? (
                           <button
                             type="button"
-                            onClick={() => store.removeEvidence(item.id)}
+                            onClick={() => { void store.removeEvidence(item.id, incident.id).catch(reportError); }}
                             className="inline-flex items-center gap-1 text-[12px] font-semibold text-critical-700 hover:underline"
                           >
                             <Trash2 size={12} /> Delete
                           </button>
                         ) : null}
                       </div>
+                      {item.blobId ? <button type="button" className="mt-2 text-[12px] font-semibold text-brand-700 hover:underline"
+                        onClick={async () => {
+                          try {
+                            const blob = await store.readEvidence(incident.id, item.id);
+                            const url = URL.createObjectURL(blob);
+                            urls.current.push(url);
+                            const link = document.createElement('a');
+                            link.href = url;
+                            link.download = item.fileName;
+                            document.body.appendChild(link);
+                            link.click();
+                            link.remove();
+                          } catch (error) { reportError(error); }
+                        }}>Download {item.fileName}</button> : <p className="mt-2 text-[11.5px] text-ink-500">Legacy metadata only — original file unavailable.</p>}
                       <dl className="mt-2 grid gap-1 text-[11.5px] text-ink-500 sm:grid-cols-2">
                         <div className="flex items-center gap-1.5">
                           <Hash size={11} />
@@ -417,7 +450,7 @@ export function IncidentDetail({ role }: { role: 'traveller' | 'guardian' }) {
       >
         <ul className="space-y-2 text-[13px] leading-relaxed text-ink-600">
           <li>• This incident, its timeline and its evidence are stored on this device only.</li>
-          <li>• Deleting removes the record, the hashed evidence metadata and its timeline events.</li>
+          <li>• Deleting removes the record, the evidence files, metadata and its timeline events.</li>
           <li>• Your guardian keeps a copy only of what was already delivered to them outside SURAKSHA.</li>
           <li>• Retention is configurable in Profile → Privacy (currently 30 days by default).</li>
         </ul>

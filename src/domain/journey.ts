@@ -107,6 +107,7 @@ export const LOCATION_LOST_AFTER_MS = 240_000;
  */
 export function effectiveNow(journey: Journey | null, now: number): number {
   if (!journey) return now;
+  if (journey.status === 'ENDED' && journey.endedAt !== null) return journey.endedAt;
   if (journey.status === 'PAUSED' && journey.pausedAt !== null) return journey.pausedAt;
   return now;
 }
@@ -116,9 +117,8 @@ export function effectiveNow(journey: Journey | null, now: number): number {
  * projection of the current off-route delay. Deliberately conservative and
  * always labelled as an estimate.
  *
- * This is the ETA the risk engine scores against. Measuring lateness against the
- * *planned* arrival alone meant a detour could never make the traveller late, so
- * a long diversion produced no late-arrival signal at all.
+ * Display-only estimate. Risk is measured against the agreed expected arrival,
+ * never this moving estimate (otherwise a detour moves the deadline forever).
  */
 export function estimatedArrivalAt(journey: Journey, now: number): number {
   const at = effectiveNow(journey, now);
@@ -133,8 +133,7 @@ export function remainingMinutes(journey: Journey, now: number): number {
 
 export function minutesLate(journey: Journey, now: number): number {
   const at = effectiveNow(journey, now);
-  const eta = estimatedArrivalAt(journey, at);
-  return Math.max(0, Math.round((at - eta) / 60_000));
+  return Math.max(0, (at - journey.expectedArrivalAt) / 60_000);
 }
 
 /** Distance of the traveller from the expected corridor, in map units. */

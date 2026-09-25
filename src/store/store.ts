@@ -1,3 +1,6 @@
+import { hashBuffer, validateEvidenceFile } from '@/services/evidence';
+import { evidenceStorage } from '@/services/evidenceStorage';
+import { alertBelongsToGuardian, guardianCanMonitor } from '@/domain/guardianScope';
 /**
  * SURAKSHA application store.
  *
@@ -167,6 +170,17 @@ function initialState(): AppState {
   };
 }
 
+type SharedState = Pick<AppState, 'journey' | 'events' | 'incidents' | 'alerts' | 'contacts' |
+  'travellerProfile' | 'guardianProfile' | 'now' | 'receipts' | 'incidentCounter'>;
+interface SessionSnapshot {
+  version: number;
+  revision: string;
+  writer: string;
+  role: Role;
+  writtenAt: number;
+  state: SharedState;
+}
+
 export class SurakshaStore {
   private state: AppState = initialState();
   private listeners = new Set<Listener>();
@@ -176,6 +190,21 @@ export class SurakshaStore {
   /** Guards against pinging the same contact twice for the same beat. */
   private dedupe = new Map<string, number>();
   private hydrated = false;
+  private readonly writerId = Math.random().toString(36).slice(2);
+  private revision: string | null = null;
+  private unsubscribeSession: (() => void) | null = null;
+  private travellerSeenAt = 0;
+
+  private syncSession = (): void => {
+    const snapshot = backend.loadSession<SessionSnapshot>();
+    if (!snapshot || snapshot.version !== SCHEMA_VERSION || snapshot.revision === this.revision) return;
+    if (snapshot.writer !== this.writerId && snapshot.role === 'traveller') this.travellerSeenAt = snapshot.writtenAt;
+    this.revision = snapshot.revision;
+    this.set({ ...snapshot.state, activeIncidentId: snapshot.state.journey?.incidentId ?? null });
+    // Receiving a snapshot must not echo it back to the other tab.
+    if (this.trailingPersist) clearTimeout(this.trailingPersist);
+    this.trailingPersist = null;
+  };
 
   /* ---------------------------------------------------------------- */
   /* React plumbing                                                   */
@@ -239,6 +268,10 @@ export class SurakshaStore {
     const storedCommunity = backend.loadCommunity();
     const storedLearning = backend.loadLearning<LearningState>();
     const storedRole = backend.loadRole();
+    const session = backend.loadSession<SessionSnapshot>();
+    const validSession = session?.version === SCHEMA_VERSION ? session : null;
+    this.revision = validSession?.revision ?? null;
+    if (validSession?.role === 'traveller' && validSession.writer !== this.writerId) this.travellerSeenAt = validSession.writtenAt;
 
     /*
      * The clock is part of the simulation, so an interrupted journey resumes
@@ -246,8 +279,9 @@ export class SurakshaStore {
      * would make it look hours overdue).
      */
     const now =
-      storedJourney && storedJourney.status !== 'ENDED'
-        ? Math.max(storedJourney.startedAt, storedJourney.lastPositionAt)
+      storedJourney
+        ? Math.max(storedJourney.startedAt, storedJourney.lastPositionAt, storedJourney.endedAt ?? 0,
+            validSession?.state.journey?.id === storedJourney.id ? validSession.state.now : 0)
         : demoStartClock();
 
     this.state = {
@@ -266,6 +300,7 @@ export class SurakshaStore {
       reports: storedCommunity?.reports ?? this.state.reports,
       learning: storedLearning ?? this.state.learning,
       activeIncidentId: storedJourney?.incidentId ?? null,
+      receipts: validSession?.state.receipts ?? [],
       incidentCounter: Math.max(
         1042,
         ...storedIncidents.map((i) => Number(i.code.replace('SRK-', '')) || 0),
@@ -279,6 +314,9 @@ export class SurakshaStore {
       }
     }
 
+    // Hydration uses the canonical collections above, not a possibly older
+    // session snapshot (for example if its last write hit a storage quota).
+
     // Repair references that a previous build left pointing at deleted records.
     this.reconcileIncidentReferences();
 
@@ -287,11 +325,14 @@ export class SurakshaStore {
   }
 
   start(): void {
+    if (!this.unsubscribeSession) this.unsubscribeSession = backend.subscribeSession(this.syncSession);
     if (this.timer) return;
     this.timer = setInterval(() => this.tick(), TICK_MS);
   }
 
   stop(): void {
+    this.unsubscribeSession?.();
+    this.unsubscribeSession = null;
     if (this.timer) clearInterval(this.timer);
     if (this.trailingPersist) clearTimeout(this.trailingPersist);
     this.trailingPersist = null;
@@ -341,6 +382,13 @@ export class SurakshaStore {
     backend.saveLearning(this.state.learning);
     backend.saveRole(this.state.role);
     backend.saveMeta({ version: SCHEMA_VERSION });
+    const { journey, events, incidents, alerts, contacts, travellerProfile, guardianProfile,
+      now: clock, receipts, incidentCounter } = this.state;
+    this.revision = `${this.writerId}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    backend.saveSession<SessionSnapshot>({ version: SCHEMA_VERSION, revision: this.revision,
+      writer: this.writerId, role: this.state.role, writtenAt: Date.now(),
+      state: { journey, events, incidents, alerts, contacts, travellerProfile, guardianProfile,
+        now: clock, receipts, incidentCounter } });
   }
 
   /* ---------------------------------------------------------------- */
@@ -506,11 +554,16 @@ export class SurakshaStore {
   endJourney(reason: 'arrived' | 'cancelled' = 'arrived'): void {
     const journey = this.state.journey;
     if (!journey) return;
-    const next = this.applyAction({ type: 'END' });
-    if (!next) return;
+    const ended = this.applyAction({ type: 'END' });
+    if (!ended) return;
+    const next = { ...ended, arrivedAt: reason === 'arrived' ? this.state.now : null };
+    this.set({ journey: next });
     this.logEvent(
       this.makeJourneyEvent('journey_ended', {
         reason,
+        expectedArrivalAt: next.expectedArrivalAt,
+        arrivedAt: next.arrivedAt,
+        lateMinutes: next.lateMinutes,
         resolvedBy: next.resolvedBy ?? 'ended_normally',
       }, next),
       {
@@ -540,16 +593,18 @@ export class SurakshaStore {
   /** "I'M SAFE" — the traveller confirming the situation is okay. */
   confirmSafe(source: 'home' | 'checkin' | 'deviation' | 'journey' | 'incident'): void {
     const journey = this.state.journey;
-    if (!journey) {
+    if (!journey || journey.status === 'ENDED') {
       this.pushToast({ title: 'No active journey', description: 'Start a journey to use check-ins.', tone: 'neutral' });
       return;
     }
+    // Ignore duplicate taps on the same completion; a new request opens a cycle.
+    if (journey.checkIn.lastCompletedAt === this.state.now) return;
     const wasRequested = journey.checkIn.state === 'REQUESTED';
     const next = this.applyAction({ type: 'SAFE_CONFIRMED' });
     if (!next) return;
 
     this.logEvent(
-      this.makeJourneyEvent('safe_confirmed', {
+      this.makeJourneyEvent('checkin_completed', {
         source,
         checkInRequested: wasRequested,
         score: next.risk.score,
@@ -567,9 +622,9 @@ export class SurakshaStore {
       },
     );
 
-    if (wasRequested) {
-      this.logEvent(this.makeJourneyEvent('checkin_completed', { source }, next));
-    }
+    // Preserve the safety-confirmation audit event; the timeline coalesces this
+    // with the canonical check-in completion rather than showing two entries.
+    this.logEvent(this.makeJourneyEvent('safe_confirmed', { source, checkInRequested: wasRequested }, next));
 
     // Tell the guardian the situation eased.
     if (bandRank(next.risk.band) < bandRank(journey.risk.band)) {
@@ -593,6 +648,7 @@ export class SurakshaStore {
     this.update((s) => ({
       ui: { ...s.ui, checkInPromptOpen: false, helpPanelOpen: false },
     }));
+    this.persist(true);
   }
 
   /**
@@ -1148,18 +1204,56 @@ export class SurakshaStore {
     });
   }
 
-  attachEvidence(record: EvidenceRecord): void {
-    const incidentId = this.state.activeIncidentId;
-    if (!incidentId) {
-      this.pushToast({ title: 'No open incident', description: 'Evidence attaches to an incident record.', tone: 'neutral' });
-      return;
+  private evidenceIncident(incidentId: string | null, write = false): Incident {
+    const incident = this.state.incidents.find((i) => i.id === incidentId);
+    if (!incident) throw new Error('Incident not found. It may have been deleted.');
+    const allowed = this.state.role === 'traveller'
+      ? incident.travellerId === this.state.travellerProfile.id
+      : !write && guardianCanMonitor(incident, this.state.guardianProfile);
+    if (!allowed) throw new Error('You do not have permission to access this evidence.');
+    return incident;
+  }
+
+  async saveEvidence(incidentId: string, record: EvidenceRecord, buffer: ArrayBuffer): Promise<void> {
+    this.evidenceIncident(incidentId, true);
+    validateEvidenceFile({ name: record.fileName, size: buffer.byteLength, type: record.mimeType });
+    if (!this.state.travellerProfile.evidenceCaptureEnabled) throw new Error('Evidence capture is disabled in Profile.');
+    await evidenceStorage.put(record.id, buffer, record.mimeType);
+    try {
+      // Recheck permissions and existence after the asynchronous write.
+      this.attachEvidence({ ...record, blobId: record.id }, incidentId);
+    } catch (error) {
+      await evidenceStorage.remove(record.id);
+      throw error;
     }
-    this.updateIncident(incidentId, (i) => ({ ...i, evidence: [record, ...i.evidence] }));
+  }
+
+  async readEvidence(incidentId: string, evidenceId: string): Promise<Blob> {
+    const incident = this.evidenceIncident(incidentId);
+    const record = incident.evidence.find((e) => e.id === evidenceId);
+    if (!record?.blobId) throw new Error('Only metadata was saved for this older attachment. Please attach the original file again.');
+    const blob = await evidenceStorage.get(record.blobId);
+    // Modern browsers can verify the saved bytes before offering a download.
+    if (typeof blob.arrayBuffer === 'function') {
+      const digest = await hashBuffer(await blob.arrayBuffer());
+      if (digest.method === record.hashMethod && digest.hash !== record.sha256) throw new Error('Evidence integrity check failed.');
+    }
+    return blob;
+  }
+
+  attachEvidence(record: EvidenceRecord, incidentId = this.state.activeIncidentId): void {
+    if (!this.state.travellerProfile.evidenceCaptureEnabled) throw new Error('Evidence capture is disabled in Profile.');
+    const incident = this.evidenceIncident(incidentId, true);
+    const incidents = this.state.incidents.map((i) => i.id === incident.id
+      ? { ...i, updatedAt: this.state.now, evidence: [record, ...i.evidence.filter((e) => e.id !== record.id)] } : i);
+    // Bytes and metadata must both be durable before the success feedback.
+    backend.saveIncidents(incidents, Boolean(record.blobId));
+    this.set({ incidents });
     this.logEvent(
       makeEvent({
         type: 'evidence_attached',
         userId: this.state.travellerProfile.id,
-        journeyId: this.state.journey?.id ?? null,
+        journeyId: incident.journeyId,
         incidentId,
         timestamp: this.state.now,
         metadata: { fileName: record.fileName, sha256: record.sha256, hashMethod: record.hashMethod },
@@ -1175,18 +1269,25 @@ export class SurakshaStore {
     this.persist(true);
   }
 
-  removeEvidence(evidenceId: string): void {
-    const incidentId = this.state.activeIncidentId;
-    if (!incidentId) return;
-    this.updateIncident(incidentId, (i) => ({
-      ...i,
-      evidence: i.evidence.filter((e) => e.id !== evidenceId),
-    }));
-    this.pushToast({ title: 'Evidence deleted', description: 'Removed from this device.', tone: 'neutral' });
+  async removeEvidence(evidenceId: string, incidentId = this.state.activeIncidentId): Promise<void> {
+    const incident = this.evidenceIncident(incidentId, true);
+    const record = incident.evidence.find((e) => e.id === evidenceId);
+    if (!record) return;
+    const incidents = this.state.incidents.map((i) => i.id === incident.id
+      ? { ...i, updatedAt: this.state.now, evidence: i.evidence.filter((e) => e.id !== evidenceId) } : i);
+    backend.saveIncidents(incidents, Boolean(record.blobId));
+    this.set({ incidents });
     this.persist(true);
+    if (record.blobId) await evidenceStorage.remove(record.blobId);
+    this.pushToast({ title: 'Evidence deleted', description: 'Removed from this device.', tone: 'neutral' });
   }
 
   deleteIncident(incidentId: string): void {
+    const record = this.state.incidents.find((i) => i.id === incidentId);
+    for (const evidence of record?.evidence ?? []) {
+      if (evidence.blobId) void evidenceStorage.remove(evidence.blobId).catch(() =>
+        this.pushToast({ title: 'File cleanup failed', description: 'Device storage could not be accessed.', tone: 'alert' }));
+    }
     const incident = this.state.incidents.find((i) => i.id === incidentId);
     this.set({
       incidents: this.state.incidents.filter((i) => i.id !== incidentId),
@@ -1285,11 +1386,11 @@ export class SurakshaStore {
 
   acknowledgeAlert(alertId: string): void {
     const alert = this.state.alerts.find((a) => a.id === alertId);
-    if (!alert) return;
+    if (!alert || !alertBelongsToGuardian(alert, this.state.guardianProfile)) return;
     const now = this.state.now;
     const guardianName = this.state.guardianProfile.name;
     // Alerts raised before the record existed still resolve to the journey's incident.
-    const incidentId = alert.incidentId ?? this.state.journey?.incidentId ?? null;
+    const incidentId = alert.incidentId ?? (alert.journeyId === this.state.journey?.id ? this.state.journey.incidentId : null);
 
     this.set({
       alerts: this.state.alerts.map((a) =>
@@ -1307,7 +1408,7 @@ export class SurakshaStore {
         acknowledgedBy: guardianName,
       }));
     }
-    if (this.state.journey) {
+    if (this.state.journey && this.state.journey.id === alert.journeyId) {
       this.set({ journey: { ...this.state.journey, guardianAcknowledgedAt: now } });
     }
 
@@ -1332,7 +1433,18 @@ export class SurakshaStore {
   }
 
   markAlertsRead(): void {
-    this.set({ alerts: this.state.alerts.map((a) => ({ ...a, read: true })) });
+    if (this.state.role !== 'guardian') return;
+    const alerts = this.state.alerts.map((a) =>
+      !a.read && alertBelongsToGuardian(a, this.state.guardianProfile) ? { ...a, read: true } : a);
+    // Save before reporting success: do not lose the read state on navigation.
+    try {
+      backend.saveAlerts(alerts, true);
+    } catch (error) {
+      this.pushToast({ title: 'Could not mark alerts read', description: error instanceof Error ? error.message : 'Please try again.', tone: 'alert' });
+      return;
+    }
+    this.set({ alerts });
+    this.persist(true);
   }
 
   updateGuardianProfile(patch: Partial<UserProfile>): void {
@@ -1347,6 +1459,11 @@ export class SurakshaStore {
     const id = `alr-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
     const alert: GuardianAlert = {
       id,
+      guardianId: this.state.guardianProfile.id,
+      travellerId: journey.travellerId,
+      travellerName: journey.travellerName,
+      riskScore: journey.risk.score,
+      locationLabel: describePosition(journey, this.state.now),
       journeyId: input.journeyId,
       incidentId: input.journeyId === journey.id ? journey.incidentId : journey.incidentId,
       band: input.band,
@@ -1357,7 +1474,9 @@ export class SurakshaStore {
       acknowledgedBy: null,
       read: false,
     };
-    this.set({ alerts: [alert, ...this.state.alerts] });
+    if (guardianCanMonitor(journey, this.state.guardianProfile)) {
+      this.set({ alerts: [alert, ...this.state.alerts] });
+    }
     return alert;
   }
 
@@ -1715,6 +1834,10 @@ export class SurakshaStore {
   /* ---------------------------------------------------------------- */
 
   private tick(): void {
+    // A traveller tab owns simulation while present. Guardian tabs consume its
+    // committed updates instead of independently generating duplicate misses.
+    if (this.hydrated) this.syncSession();
+    if (this.state.role === 'guardian' && Date.now() - this.travellerSeenAt < 6000) return;
     const speed = this.state.simSpeed;
     const dt = TICK_MS * speed;
     const now = this.state.now + dt;
@@ -1967,6 +2090,11 @@ export class SurakshaStore {
     };
     const next = reduceJourney(shortened, { type: 'TICK' }, now);
     this.set({ journey: next });
+    if (journey.lateMinutes === 0 && next.lateMinutes > 0) {
+      this.logEvent(this.makeJourneyEvent('late_arrival', {
+        plannedArrival: next.expectedArrivalAt, minutesLate: next.lateMinutes,
+      }, next));
+    }
     this.pushToast({
       title: `Planned arrival moved ${minutes} min earlier`,
       description: 'This is the demo standing in for a delayed start or a slower route.',
@@ -1977,6 +2105,8 @@ export class SurakshaStore {
   }
 
   resetDemo(): void {
+    if (typeof indexedDB !== 'undefined') void evidenceStorage.clear().catch(() =>
+      this.pushToast({ title: 'Evidence cleanup failed', tone: 'alert' }));
     backend.reset();
     const fresh = initialState();
     this.state = {

@@ -133,7 +133,7 @@ export function presentEvent(event: SafetyEvent): EventPresentation {
       return { label: 'Journey ended', tone: 'safe', icon: 'check' };
     case 'risk_changed':
       return {
-        label: `Risk state → ${detail('band') ?? 'SAFE'} (score ${detail('score') ?? '0'})`,
+        label: `Risk state → ${detail('band') ?? 'SAFE'} (score ${count('score') ?? detail('score') ?? 0})`,
         tone:
           detail('band') === 'CRITICAL'
             ? 'critical'

@@ -242,9 +242,9 @@ export function DemoPanel() {
               <DemoAction
                 icon={<TimerOff size={16} />}
                 label="Shift planned arrival earlier (late arrival)"
-                hint="Adds the +10 late-arrival signal without waiting"
+                hint="Moves expected arrival into the past to demonstrate the existing +10 late-arrival rule"
                 disabled={!hasJourney}
-                onClick={() => store.simulateEtaSlip(3)}
+                onClick={() => journey && store.simulateEtaSlip(Math.max(3, Math.ceil((journey.expectedArrivalAt - now) / 60_000) + 3))}
               />
               <DemoAction
                 icon={<PhoneCall size={16} />}

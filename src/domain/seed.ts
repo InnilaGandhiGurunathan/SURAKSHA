@@ -82,6 +82,7 @@ export const travellerProfileSeed: UserProfile = {
 
 export const guardianProfileSeed: UserProfile = {
   id: GUARDIAN_ID,
+  contactId: 'ct-rohan',
   role: 'guardian',
   name: DEMO_PEOPLE.guardian,
   homeLabel: 'Home',

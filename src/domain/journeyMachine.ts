@@ -10,11 +10,10 @@
  */
 
 import type { Journey, JourneyStatus, RiskAssessment, RiskBand } from './types';
-import { scoreRisk, type RiskInputs } from './riskEngine';
+import { EMPTY_RISK_INPUTS, scoreRisk, type RiskInputs } from './riskEngine';
 import {
   LOCATION_STALE_AFTER_MS,
   effectiveNow,
-  estimatedArrivalAt,
   minutesLate,
   remainingMinutes as remainingJourneyMinutes,
 } from './journey';
@@ -43,16 +42,10 @@ export function maxBand(a: RiskBand, b: RiskBand): RiskBand {
 }
 
 export function journeyToRiskInputs(journey: Journey, now: number): RiskInputs {
-  /*
-   * Lateness is measured against the *estimated* arrival — planned arrival plus
-   * time lost to detours — and against the frozen clock while paused. Using the
-   * planned arrival alone meant a diversion could never make the traveller late,
-   * so a long deviation produced no late-arrival signal.
-   */
+  // Compare with the agreed deadline, not the continuously moving ETA.
   const at = effectiveNow(journey, now);
-  const eta = estimatedArrivalAt(journey, at);
-  const pastExpectedArrival = at > eta;
-  const lateMinutes = pastExpectedArrival ? Math.max(0, (at - eta) / 60_000) : 0;
+  const lateMinutes = minutesLate(journey, now);
+  const pastExpectedArrival = journey.status !== 'ENDED' && lateMinutes > 0;
 
   /*
    * Location is now a first-class signal. "Lost" is an explicit outage; "stale"
@@ -79,6 +72,7 @@ export function journeyToRiskInputs(journey: Journey, now: number): RiskInputs {
 
 /** Recomputes the risk assessment for a journey at time `now`. */
 export function assessJourney(journey: Journey, now: number): RiskAssessment {
+  if (journey.status === 'ENDED') return scoreRisk(EMPTY_RISK_INPUTS);
   return scoreRisk(journeyToRiskInputs(journey, now));
 }
 
@@ -115,9 +109,11 @@ export function reduceJourney(journey: Journey, action: JourneyAction, now: numb
 
     case 'TICK': {
       // A paused journey keeps its risk assessment live but its timers frozen,
-      // so lateness is measured against the estimated (detour-aware) arrival.
+      // so lateness uses the agreed expected arrival and frozen pause clock.
       if (next.status !== 'PAUSED') {
         next.lateMinutes = minutesLate(next, now);
+        // Earlier check-ins cannot pre-discount a newly overdue arrival.
+        if (journey.lateMinutes === 0 && next.lateMinutes > 0) next.safeConfirmationCount = 0;
       }
       break;
     }
@@ -198,6 +194,7 @@ export function reduceJourney(journey: Journey, action: JourneyAction, now: numb
 
     case 'END': {
       next.status = 'ENDED';
+      next.lateMinutes = minutesLate(journey, now);
       next.endedAt = now;
       next.checkIn = { ...next.checkIn, state: 'IDLE', dueAt: null, expiresAt: null, requestedAt: null };
       // An ended journey has nothing left to follow up on.

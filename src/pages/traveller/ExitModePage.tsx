@@ -1,3 +1,4 @@
+import { FakeCallHelp } from '@/components/domain/FakeCallHelp';
 /**
  * Exit Mode — hero feature.
  * "Need a believable reason to leave? We can help."
@@ -32,7 +33,7 @@ export function ExitModePage() {
 
       <div className="grid gap-4 lg:grid-cols-[1.1fr_1fr]">
         <Card>
-          <CardHeader title="Set up your exit" subtitle="Pick how soon and who appears to be calling." icon={<PhoneCall size={16} />} />
+          <CardHeader action={<FakeCallHelp />} title="Set up your exit" subtitle="Pick how soon and who appears to be calling." icon={<PhoneCall size={16} />} />
           <CardBody>
             <ExitModeSetup />
           </CardBody>

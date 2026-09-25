@@ -1,3 +1,4 @@
+import { useGuardianAlerts } from '@/store/hooks';
 /**
  * AppShell — responsive chrome.
  *
@@ -24,7 +25,7 @@ import { RoleSwitcher } from './RoleSwitcher';
 import { Badge } from '@/components/ui/primitives';
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const { role, journey, alerts, travellerProfile, exitMode, ready } = useAppState();
+  const { role, journey, travellerProfile, exitMode, ready } = useAppState();
   const navigate = useNavigate();
   const location = useLocation();
   const [moreOpen, setMoreOpen] = useState(false);
@@ -32,7 +33,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const nav = navForRole(role);
   const primaryMobile = nav.filter((item) => item.mobile).slice(0, 4);
   const secondaryMobile = nav.filter((item) => !item.mobile);
-  const unreadAlerts = alerts.filter((a) => !a.acknowledgedAt).length;
+  const unreadAlerts = useGuardianAlerts().filter((a) => !a.read).length;
   const band = journey?.risk.band ?? 'SAFE';
   const demoMode = travellerProfile.demoMode;
 
@@ -261,9 +262,9 @@ function TopBar({
   demoMode: boolean;
   onOpenDemo: () => void;
 }) {
-  const { role, alerts, incidents, journey } = useAppState();
+  const { role, incidents, journey } = useAppState();
   const navigate = useNavigate();
-  const unreadAlerts = alerts.filter((a) => !a.acknowledgedAt).length;
+  const unreadAlerts = useGuardianAlerts().filter((a) => !a.read).length;
   const openIncident = incidents.find((i) => i.status !== 'RESOLVED' && i.id === journey?.incidentId);
 
   return (

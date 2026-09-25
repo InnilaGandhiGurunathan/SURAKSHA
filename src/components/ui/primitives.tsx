@@ -16,6 +16,7 @@ import {
   type TextareaHTMLAttributes,
 } from 'react';
 import { X } from 'lucide-react';
+import { createPortal } from 'react-dom';
 import { cn } from '@/lib/cn';
 import { TONES, type Tone } from '@/lib/status';
 import type { RiskBand } from '@/domain/types';
@@ -462,6 +463,7 @@ export function Modal({
   size = 'md',
   tone,
   labelledBy,
+  layer = 'default',
 }: {
   open: boolean;
   onClose: () => void;
@@ -472,6 +474,7 @@ export function Modal({
   size?: 'sm' | 'md' | 'lg' | 'xl';
   tone?: Tone;
   labelledBy?: string;
+  layer?: 'default' | 'call';
 }) {
   const trapRef = useFocusTrap(open, onClose);
   const generatedId = useId();
@@ -495,8 +498,8 @@ export function Modal({
     xl: 'max-w-4xl',
   } as const;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
+  const content = (
+    <div className={cn("fixed inset-0 flex items-end justify-center sm:items-center", layer === 'call' ? 'z-[80]' : 'z-50')}>
       <div
         className="absolute inset-0 animate-fade-in bg-ink-950/45 backdrop-blur-[2px]"
         onClick={onClose}
@@ -536,6 +539,7 @@ export function Modal({
       </div>
     </div>
   );
+  return layer === 'call' ? createPortal(content, document.body) : content;
 }
 
 /* ----------------------------------------------------------------- */

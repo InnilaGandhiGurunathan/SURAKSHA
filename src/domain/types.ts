@@ -194,6 +194,8 @@ export interface Journey {
 
   pausedAt: number | null;
   endedAt: number | null;
+  /** Explicit arrival confirmation; cancelling a journey is not arrival. */
+  arrivedAt?: number | null;
   /** Set when the journey was ended or resolved after an alert. */
   resolvedBy: 'ended_normally' | 'resolved_after_alert' | null;
 }
@@ -257,6 +259,8 @@ export interface EvidenceRecord {
   description: string;
   /** Demo evidence is generated locally and never uploaded. */
   simulated: boolean;
+  /** Blob stored separately in the local evidence database. */
+  blobId?: string;
 }
 
 export interface Incident {
@@ -319,6 +323,8 @@ export interface TrustedContact {
 }
 
 export interface UserProfile {
+  /** Explicit link to this guardian’s trusted-circle contact. */
+  contactId?: string;
   id: string;
   role: Role;
   name: string;
@@ -341,6 +347,12 @@ export interface UserProfile {
 /* ------------------------------------------------------------------ */
 
 export interface GuardianAlert {
+  /** Snapshot at the time of the alert, not the current journey score. */
+  riskScore?: number;
+  travellerName?: string;
+  locationLabel?: string;
+  guardianId?: string;
+  travellerId?: string;
   id: string;
   journeyId: string | null;
   incidentId: string | null;
