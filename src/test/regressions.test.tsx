@@ -350,6 +350,21 @@ describe('reported bugs', () => {
   /* #3 — Exit Mode speaks, and mute means silent                        */
   /* ------------------------------------------------------------------ */
 
+  it('#3 rings a call armed during an active journey, not only on an idle app', () => {
+    appStore.startCanonicalJourney();
+    expect(appStore.getState().journey!.status).toBe('ACTIVE');
+
+    appStore.startExitMode({ delaySeconds: 10, contactId: 'ct-priya' });
+    expect(appStore.getState().exitMode?.ringing).toBe(false);
+
+    tick(3); // 24 virtual seconds — past the 10 s delay
+
+    // The journey is still running, and the call has rung anyway. Exit Mode is
+    // only ever armed mid-journey, so an idle-app-only countdown never fires.
+    expect(appStore.getState().journey!.status).toBe('ACTIVE');
+    expect(appStore.getState().exitMode?.ringing).toBe(true);
+  });
+
   it('#3 starts no audio before the call is answered', () => {
     const { speak } = installSpeech();
     appStore.startExitMode({ delaySeconds: 10, contactId: 'ct-priya' });
