@@ -72,7 +72,10 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="min-w-0 flex-1">
           <TopBar band={band} demoMode={demoMode} onOpenDemo={() => store.toggleUi('demoPanelOpen', true)} />
 
-          <main className="mx-auto w-full max-w-[1180px] px-4 pb-28 pt-4 sm:px-6 sm:pt-6 lg:pb-14">
+          <main
+            key={location.pathname}
+            className="mx-auto w-full max-w-[1180px] animate-fade-in-up px-4 pb-28 pt-4 sm:px-6 sm:pt-6 lg:pb-14"
+          >
             {children}
           </main>
         </div>

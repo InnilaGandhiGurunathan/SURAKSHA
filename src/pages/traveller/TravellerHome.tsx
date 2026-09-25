@@ -9,7 +9,7 @@
  */
 
 import { Link, useNavigate } from 'react-router-dom';
-import { Siren } from 'lucide-react';
+import { ArrowRight, ChevronRight, ShieldAlert, ShieldCheck, Siren } from 'lucide-react';
 import { Avatar, StatusDot, StatusPill } from '@/components/ui/primitives';
 import { MissedCheckInBanner } from '@/components/domain/CheckInPrompt';
 import { useAppState, store } from '@/store/hooks';
@@ -17,6 +17,17 @@ import { formatDurationMinutes } from '@/lib/format';
 import { remainingMinutes } from '@/domain/journey';
 import { EMPTY_RISK_INPUTS, scoreRisk } from '@/domain/riskEngine';
 import { toneForBand } from '@/lib/status';
+import { cn } from '@/lib/cn';
+
+/** Soft medallion tints — calm when safe, warmer as the band rises. */
+const MEDALLION: Record<string, string> = {
+  safe: 'bg-safe-100 text-safe-700',
+  brand: 'bg-brand-100 text-brand-700',
+  neutral: 'bg-ink-100 text-ink-600',
+  watch: 'bg-watch-100 text-watch-700',
+  alert: 'bg-alert-100 text-alert-700',
+  critical: 'bg-critical-100 text-critical-700',
+};
 
 export function TravellerHome() {
   const { journey, now, travellerProfile } = useAppState();
@@ -25,20 +36,19 @@ export function TravellerHome() {
   const assessment = journey?.risk ?? scoreRisk(EMPTY_RISK_INPUTS);
   const active = Boolean(journey && journey.status !== 'ENDED');
   const tone = toneForBand(assessment.band);
+  const calm = assessment.band === 'SAFE';
 
-  const statusTitle =
-    assessment.band === 'SAFE'
-      ? active
-        ? 'Journey active'
-        : "You're safe"
-      : assessment.band.charAt(0) + assessment.band.slice(1).toLowerCase();
-  const statusSub = active && journey
-    ? `${journey.originLabel} → ${journey.destinationLabel}`
-    : 'No active journey';
+  const statusTitle = calm
+    ? active
+      ? 'Journey active'
+      : "You're safe"
+    : assessment.band.charAt(0) + assessment.band.slice(1).toLowerCase();
+  const statusSub =
+    active && journey ? `${journey.originLabel} → ${journey.destinationLabel}` : 'No active journey';
 
   // Detailed risk info lives on the Journey page; this link only appears
   // when there is actually something to explain.
-  const showWhy = active || assessment.band !== 'SAFE';
+  const showWhy = active || !calm;
 
   return (
     <div
@@ -54,20 +64,28 @@ export function TravellerHome() {
           <p className="text-[14px] font-semibold leading-tight text-ink-900">Good evening</p>
           <p className="truncate text-[12.5px] text-ink-500">{travellerProfile.name}</p>
         </div>
-        {assessment.band !== 'SAFE' ? (
+        {!calm ? (
           <span className="ml-auto">
             <StatusPill band={assessment.band} size="sm" showEmoji={false} />
           </span>
         ) : null}
       </header>
 
-      {/* 1 — Current safety status. Calm, lightweight, no card. */}
-      <section className="pb-2 pt-8 text-center sm:pt-10" aria-live="polite">
-        <p className="flex items-center justify-center gap-2 text-[11px] font-bold uppercase tracking-[0.12em] text-ink-400">
-          <StatusDot tone={tone} pulse={assessment.band !== 'SAFE'} />
+      {/* 1 — Current safety status. Reassuring, lightweight, no card. */}
+      <section className="flex flex-col items-center pb-2 pt-8 text-center sm:pt-10" aria-live="polite">
+        <span
+          className={cn(
+            'grid h-14 w-14 place-items-center rounded-2xl shadow-sm',
+            MEDALLION[tone] ?? MEDALLION.neutral,
+          )}
+        >
+          {calm ? <ShieldCheck size={26} /> : <ShieldAlert size={26} />}
+        </span>
+        <p className="mt-3 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.12em] text-ink-400">
+          <StatusDot tone={tone} pulse={!calm} />
           Current status
         </p>
-        <h1 className="mt-2 text-[34px] font-bold leading-none tracking-tight text-ink-900 sm:text-[38px]">
+        <h1 className="mt-1.5 text-[34px] font-bold leading-none tracking-tight text-ink-900 sm:text-[38px]">
           {statusTitle}
         </h1>
         <p className="mt-2 text-[14px] text-ink-500">{statusSub}</p>
@@ -87,45 +105,56 @@ export function TravellerHome() {
         </div>
       ) : null}
 
-      {/* 2 + 3 — the only two actions on this screen. */}
+      {/* 2 — Start Journey: the primary action. */}
       <div className="mt-6 space-y-3">
         {active && journey ? (
           <button
             type="button"
             onClick={() => navigate('/traveller/journey')}
-            className="flex min-h-[76px] w-full flex-col items-center justify-center gap-0.5 rounded-2xl bg-brand-600 px-6 py-4 text-white shadow-raised transition-state hover:bg-brand-700 active:scale-[0.99]"
+            className="flex min-h-[80px] w-full flex-col items-center justify-center gap-1 rounded-2xl bg-brand-600 px-6 py-4 text-white shadow-raised transition-state hover:bg-brand-700 active:scale-[0.99]"
           >
             <span className="text-[19px] font-bold uppercase tracking-[0.06em]">
               Journey active
             </span>
-            <span className="text-[13px] font-medium opacity-90">
-              {formatDurationMinutes(remainingMinutes(journey, now))} remaining →
+            <span className="flex items-center gap-1.5 text-[13.5px] font-medium opacity-90">
+              {formatDurationMinutes(remainingMinutes(journey, now))} remaining
+              <ArrowRight size={14} />
             </span>
           </button>
         ) : (
           <button
             type="button"
             onClick={() => navigate('/traveller/start')}
-            className="flex min-h-[76px] w-full flex-col items-center justify-center gap-0.5 rounded-2xl bg-brand-600 px-6 py-4 text-white shadow-raised transition-state hover:bg-brand-700 active:scale-[0.99]"
+            className="flex min-h-[80px] w-full flex-col items-center justify-center gap-1 rounded-2xl bg-brand-600 px-6 py-4 text-white shadow-raised transition-state hover:bg-brand-700 active:scale-[0.99]"
           >
-            <span className="text-[19px] font-bold uppercase tracking-[0.06em]">
-              Start journey
+            <span className="text-[19px] font-bold uppercase tracking-[0.06em]">Start journey</span>
+            <span className="flex items-center gap-1.5 text-[13.5px] font-medium opacity-90">
+              Set destination
+              <ArrowRight size={14} />
             </span>
-            <span className="text-[13px] font-medium opacity-90">Set destination →</span>
           </button>
         )}
 
+        {/* 3 — SOS: a deliberate emergency control, unmistakable but
+            visually distinct from the primary action so the page stays calm. */}
         <button
           type="button"
-          aria-label="Quick SOS — get help now"
+          aria-label="Quick SOS — get emergency assistance now"
           onClick={() => store.toggleUi('sosPanelOpen', true)}
-          className="flex min-h-[76px] w-full flex-col items-center justify-center gap-0.5 rounded-2xl bg-critical-600 px-6 py-4 text-white shadow-raised transition-state hover:bg-critical-700 active:scale-[0.99]"
+          className="flex w-full items-center gap-4 rounded-2xl border-[1.5px] border-critical-200 bg-white px-5 py-4 text-left shadow-card transition-state hover:border-critical-300 hover:shadow-raised active:scale-[0.99]"
         >
-          <span className="flex items-center gap-2 text-[19px] font-bold uppercase tracking-[0.06em]">
-            <Siren size={19} />
-            SOS
+          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-critical-600 text-white shadow-sm">
+            <Siren size={22} />
           </span>
-          <span className="text-[13px] font-medium opacity-90">Get help now</span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[18px] font-bold leading-tight tracking-[0.08em] text-critical-700">
+              SOS
+            </span>
+            <span className="block text-[13px] font-medium text-ink-500">
+              Emergency assistance
+            </span>
+          </span>
+          <ChevronRight size={20} className="shrink-0 text-critical-300" />
         </button>
       </div>
 

@@ -419,7 +419,7 @@ export function ActiveJourney() {
             <CardHeader title="Trusted circle on watch" icon={<Users size={16} />} />
             <CardBody className="space-y-2">
               {[primary].filter(Boolean).map((contact) => (
-                <div key={contact!.id} className="flex items-center justify-between gap-3 rounded-xl border border-ink-200 px-3 py-2.5">
+                <div key={contact!.id} className="flex items-center justify-between gap-3 rounded-xl bg-ink-50 px-3 py-2.5">
                   <div className="min-w-0">
                     <p className="truncate text-[13px] font-semibold text-ink-800">{contact!.name}</p>
                     <p className="text-[11.5px] text-ink-500">
@@ -446,7 +446,7 @@ export function ActiveJourney() {
 
 function MapStat({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
-    <div className="rounded-xl border border-ink-200 bg-white px-3 py-2.5">
+    <div className="rounded-xl bg-ink-50 px-3 py-2.5">
       <p className="sr-label">{label}</p>
       <p className="mt-0.5 text-[14px] font-bold text-ink-900">{value}</p>
       {hint ? <p className="text-[11.5px] text-ink-500">{hint}</p> : null}
