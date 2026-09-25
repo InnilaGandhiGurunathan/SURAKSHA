@@ -15,6 +15,7 @@ import {
   Toggle,
 } from '@/components/ui/primitives';
 import { PageHeader } from '@/components/domain/blocks';
+import { GoogleMapsDebugCard } from '@/components/map/MapsDebugPanel';
 import { useAppState, store } from '@/store/hooks';
 
 export function GuardianSettings() {
@@ -96,6 +97,8 @@ export function GuardianSettings() {
             <p>🚫 You cannot trigger SOS on their behalf — SURAKSHA only escalates what the traveller signals.</p>
           </CardBody>
         </Card>
+
+        <GoogleMapsDebugCard className="lg:col-span-2" />
 
         <Card>
           <CardHeader title="Demo & data" icon={<FlaskConical size={16} />} />

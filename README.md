@@ -41,7 +41,7 @@ A missed check-in is recorded as *nobody answered a routine prompt* — never as
 | --- | --- |
 | **Home** | 🟢 SAFE headline, journey status, location, next check-in, ETA, trusted contact, Start Journey / Exit Mode / Quick SOS, recent activity, “Why this score?” |
 | **Start Journey** | Destination, starting point, expected arrival (duration *or* clock), check-in interval (5/10/15/30/60/custom), grace period, primary + backup contact, route preset |
-| **Active Journey** | Large interactive map (marker, destination, expected corridor, travelled trail, ETA, route status), check-in countdown, **I'M SAFE** / **I NEED HELP**, pause / end / Exit Mode / SOS, demo controls |
+| **Active Journey** | Large interactive map on real Google tiles (marker, destination, expected corridor, travelled trail, ETA, route status; the header states live vs simulated surface), check-in countdown, **I'M SAFE** / **I NEED HELP**, pause / end / Exit Mode / SOS, demo controls |
 | **Exit Mode** | “Need a believable reason to leave?” → 10 s / 2 min / after-safety trigger, caller identity, then a polished simulated incoming call with a scripted transcript |
 | **Quick SOS** | **One tap** → 🔴 CRITICAL, incident created, trusted circle alerted, honest emergency handoff, and a real `tel:112` link the traveller presses themselves |
 | **Trusted Circle** | Primary / backup contacts, add / edit / remove, channel preferences, visual escalation chain |
@@ -158,6 +158,31 @@ Lateness is measured against the agreed `expectedArrivalAt`, not the moving deto
 ### Simulation instead of GPS
 A single virtual clock starts at **10:42 PM** so the seeded scenario reads exactly like the demo script. `store.tick()` advances the clock, moves the traveller along the corridor, raises check-ins, detects misses, streams location updates and re-assesses risk on every tick. Demo speed is 1× / 2× / 4× / 8×. The map is an interactive SVG surface (pan, wheel-zoom, follow-cam, legend) so nothing depends on an external tile service.
 
+### The map: Google tiles, with an honest fallback
+One env var gives SURAKSHA a real basemap. The Google map is the map of record — there is no basemap switch on the map itself — and the built-in canvas is what it degrades to when there is no key, Google refuses the key, or the network blocks the script. A fallback that looks like the product is a bug on a safety screen, so every map card header states which one you are looking at.
+
+```bash
+cp .env.example .env      # VITE_GOOGLE_MAPS_API_KEY="AIza…"  (the VITE_ prefix is mandatory)
+npm run dev               # restart — Vite freezes env values at build time
+npm run maps:check         # "is the key actually arriving?", from the terminal
+```
+
+A variable set in the host (Vercel → Project Settings → Environment Variables) is picked up the same way — Vite reads `VITE_*` from the build environment as well as from `.env`, and the app reads it as a literal `import.meta.env.VITE_GOOGLE_MAPS_API_KEY` so the value is really baked into the client bundle. Where to check it, in order of convenience:
+
+| Where | What you get |
+| --- | --- |
+| `npm run maps:check` | Which `.env` file Vite will read, the variable's source, the mask, the shape — exit code 0 only when usable. Add `--json` for CI. |
+| The badge on every map | Green "Live map · AIza…abcd" or amber "No Maps key — simulated map", echoed as a chip in the card header. Click it for the full readout, the fix list, a **Test connection** button, a this-tab-only key field (`sessionStorage`, for previews where you cannot rebuild) and **Force the simulated fallback** for demos. |
+| Profile → Live map, Guardian → Settings, the Demo panel | The same panel, in the UI. |
+| `surakshaMaps` in the devtools console | `.status()` (object) · `.check()` (text) · `.test()` (really load the script) · `.useKey('AIza…')` · `.clearKey()` · `.live()` / `.simulated()`. Also `window.__SURAKSHA__.maps`, and a boot banner in `npm run dev`. |
+| `?maps=live` · `?maps=sim` · `?maps=debug` | Force the surface for one page load (`sim` = the fallback, for a screen-recording or an offline demo), or open the key check directly. Used by the e2e runs. |
+
+The live surface draws the corridor, travelled trail, deviation branch, pins, traveller marker and landmark labels through `toLatLng()`; the header on Active Journey, the guardian dashboard and both journey screens read the same `mapSurfaceCopy()` sentence, so the words cannot drift from the pixels.
+
+Implementation notes: `config/googleMaps.ts` resolves and inspects the key, `services/googleMapsApi.ts` is the hand-written loader (one script tag, one promise, no `@react-google-maps/*` dependency) plus the single `getGoogleMapsStatus()` object every surface reads, and `components/map/GoogleMapLayer.tsx` projects the existing geometry through `toLatLng()` instead of duplicating it. Live mode uses `google.maps.Marker` (no Map ID needed), `gestureHandling: 'cooperative'` so the page still scrolls, and `role="img"` with the same text summary the SVG carries. Key restrictions (HTTP referrer, "Maps JavaScript API" enabled) are the top cause of a refused key, so `gm_authFailure` is surfaced as its own state rather than a blank tile area.
+
+Nothing else in SURAKSHA depends on Google: the risk engine, check-ins, escalation and the whole judge script run identically with the variable absent — only the basemap changes.
+
 ### Build hygiene
 Two traps here already cost a debugging session, and both are guarded now:
 
@@ -180,13 +205,14 @@ npm run dev        # http://localhost:5173  (binds 0.0.0.0)
 
 ```bash
 npm test           # unit/component regressions, including both role views
+npm run maps:check # is the optional VITE_GOOGLE_MAPS_API_KEY arriving?
 npm run build      # type-check + production bundle
 npm run preview    # serve the build
 npx playwright install chromium
 npm run test:e2e    # real-browser flows, including two-tab synchronization
 ```
 
-No API keys, no accounts, no network calls at runtime (unless you link Supabase — see below). Metadata lives in `localStorage` under `suraksha.v1.*`; evidence bytes are stored in IndexedDB (`suraksha.evidence.v1`). Tabs on the same browser origin synchronize committed journey/check-in/alert updates.
+No API keys are required (the only optional ones are `VITE_GOOGLE_MAPS_API_KEY` for real map tiles and `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY` for Supabase Auth — see the sections below), no accounts, no network calls at runtime. Metadata lives in `localStorage` under `suraksha.v1.*`; evidence bytes are stored in IndexedDB (`suraksha.evidence.v1`). Tabs on the same browser origin synchronize committed journey/check-in/alert updates.
 
 ### Sign-in & Supabase Auth
 
@@ -199,7 +225,7 @@ The **QUICK SOS** button is the sign-in affordance: signed out, every SOS surfac
 Link a project either from the **“Connect your Supabase project”** card on `/login`, or via build env:
 
 ```bash
-cp .env.example .env.local   # paste Project URL + anon (public) key
+cp .env.example .env   # VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY (public anon key)
 ```
 
 Only the project URL and the **anon/public** key are ever stored or read — never the `service_role` secret. `services/supabase.ts` lazy-creates the client, so an unlinked checkout boots with no Supabase at all.
@@ -212,7 +238,7 @@ Both **Start Journey** (planning) and **Active Journey** (live) carry a Google-M
 - **Depart / arrive-by** — leave now, a custom departure time, or “arrive by” (the departure time is solved from the ETA).
 - **Traffic model** (light / moderate / heavy) and a **custom speed** slider (0.2×–3×).
 - **Avoid options** — ferries, highways, tolls.
-- **Turn-by-turn steps** and a **Recalculate** refresh, with every number labelled an *estimate* on SURAKSHA's fictional demo map.
+- **Turn-by-turn steps** and a **Recalculate** refresh, with every number labelled an *estimate* on SURAKSHA's demo map.
 
 Chosen preferences are stored on the journey, and the live panel can re-plan the running ETA (guardians see the same estimate).
 

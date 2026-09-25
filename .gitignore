@@ -6,6 +6,14 @@ dist-ssr
 *.log
 .vite
 
+# --- Secrets -----------------------------------------------------------------
+# `*.local` above already covers .env.local / .env.*.local; .env itself is the
+# file people actually create, and a Google Maps key is not something to push.
+# Templates (.env.example) stay tracked on purpose.
+.env
+.env.*
+!.env.example
+
 tsconfig.tsbuildinfo
 *.tsbuildinfo
 

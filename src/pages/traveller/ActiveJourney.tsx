@@ -38,6 +38,7 @@ import {
 } from '@/components/ui/primitives';
 import { PageHeader, StateHero } from '@/components/domain/blocks';
 import { JourneyMap } from '@/components/map/JourneyMap';
+import { useMapSurface } from '@/components/map/useGoogleMaps';
 import { EventTimeline } from '@/components/domain/EventTimeline';
 import { RiskBandLadder, RiskWhyPanel } from '@/components/domain/RiskWhyPanel';
 import { HelpPanel } from '@/components/domain/HelpPanel';
@@ -54,6 +55,7 @@ export function ActiveJourney() {
   const { primary } = useCircle();
   const navigate = useNavigate();
   const [confirmEnd, setConfirmEnd] = useState(false);
+  const mapSurface = useMapSurface();
 
   if (!journey || journey.status === 'ENDED') {
     return (
@@ -150,7 +152,7 @@ export function ActiveJourney() {
               title="Live journey map"
               subtitle={
                 journey.locationAvailable
-                  ? `Simulated GPS · updated ${formatRelative(journey.lastPositionAt, now)}`
+                  ? `${mapSurface.headerLabel} · updated ${formatRelative(journey.lastPositionAt, now)}`
                   : 'Location unavailable — showing last known position'
               }
               icon={<Radar size={16} />}
