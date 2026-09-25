@@ -39,7 +39,8 @@ A missed check-in is recorded as *nobody answered a routine prompt* — never as
 ### Traveller (mobile-first)
 | Screen | What it does |
 | --- | --- |
-| **Home** | 🟢 SAFE headline, journey status, location, next check-in, ETA, trusted contact, Start Journey / Exit Mode / Quick SOS, recent activity, “Why this score?” |
+| **Welcome** (`/welcome`) | Landing page: “What is SURAKSHA?” — the flow story (Journey → Detect → Check-in → Escalate → Respond) with every step linking to the real feature. Reached from Home’s “How SURAKSHA works” link |
+| **Home** | Minimalist, status-first: calm status medallion (You’re safe / Watch / Alert / Critical), origin → destination, “Why this status?” link, one primary **Start journey** / **Journey active** button, and the SOS card — **SIGN IN** while signed out, per the sign-in-gateway rule. Everything else (circle, incidents, exit mode, community…) stays in the existing navigation |
 | **Start Journey** | Destination, starting point, expected arrival (duration *or* clock), check-in interval (5/10/15/30/60/custom), grace period, primary + backup contact, route preset |
 | **Active Journey** | Large interactive map on real Google tiles (marker, destination, expected corridor, travelled trail, ETA, route status; the header states live vs simulated surface), check-in countdown, **I'M SAFE** / **I NEED HELP**, pause / end / Exit Mode / SOS, demo controls |
 | **Exit Mode** | “Need a believable reason to leave?” → 10 s / 2 min / after-safety trigger, caller identity, then a polished simulated incoming call with a scripted transcript |

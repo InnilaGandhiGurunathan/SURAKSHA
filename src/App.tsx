@@ -19,6 +19,7 @@ import { GuardianAlerts } from '@/pages/guardian/GuardianAlerts';
 import { GuardianIncidents } from '@/pages/guardian/GuardianIncidents';
 import { GuardianContacts } from '@/pages/guardian/GuardianContacts';
 import { GuardianSettings } from '@/pages/guardian/GuardianSettings';
+import { Welcome } from '@/pages/Welcome';
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -63,6 +64,7 @@ function AppRoutes() {
             <AppShell>
               <Routes>
                 <Route path="/" element={<Navigate to={role === 'guardian' ? '/guardian' : '/traveller'} replace />} />
+                <Route path="/welcome" element={<Welcome />} />
 
                 {/* Traveller */}
                 <Route path="/traveller" element={<TravellerHome />} />
