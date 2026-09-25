@@ -107,9 +107,8 @@ describe('simulation engine', () => {
   });
 
   /*
-   * #6 — lateness has to be measured against the *detour-adjusted* ETA. When it
-   * was measured against the planned arrival alone, a diversion could never
-   * make the traveller late, so a long deviation never produced this signal.
+   * Detours may move the displayed estimate, but do not move the agreed
+   * arrival deadline. A journey still open past that deadline is overdue.
    */
   it('charges a late-arrival signal once time lost to a detour pushes the ETA past the plan', () => {
     store.setSimSpeed(8);
@@ -122,8 +121,8 @@ describe('simulation engine', () => {
     store.restoreRoute();
 
     const restored = store.getState().journey!;
-    // The detour has moved the *estimate* later — the traveller is not accused
-    // of being late merely for having taken a different road.
+    // The estimate moved later, but the agreed 30-minute deadline has not
+    // passed yet after this ten-minute diversion.
     expect(estimatedArrivalAt(restored, store.getState().now)).toBeGreaterThan(plannedArrival);
     expect(restored.lateMinutes).toBe(0);
 

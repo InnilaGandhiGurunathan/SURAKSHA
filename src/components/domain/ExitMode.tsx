@@ -13,7 +13,7 @@ import {
   Phone,
   PhoneCall,
   PhoneOff,
-  ShieldQuestion,
+  ShieldAlert,
   Sparkles,
   Volume2,
   VolumeX,
@@ -24,6 +24,7 @@ import { Avatar } from '@/components/ui/primitives';
 import { useAppState, store } from '@/store/hooks';
 import { formatCountdown } from '@/lib/format';
 import { isVoiceSupported, speakLine, stopVoice } from '@/services/voice';
+import { FakeCallHelp } from './FakeCallHelp';
 import { cn } from '@/lib/cn';
 
 export const EXIT_CALLERS = [
@@ -55,6 +56,8 @@ export function ExitModeOverlay() {
   useEffect(() => {
     if (!answered) {
       setLive(0);
+      setMuted(false);
+      setSpeaker(true);
       return;
     }
     const id = setInterval(() => setLive((s) => s + 1), 1000);
@@ -217,11 +220,6 @@ function ActiveCallScreen({
   volumeRef.current = speaker ? 1 : 0.45;
 
   useEffect(() => {
-    if (muted) {
-      // Mute must cancel instantly, and must not resume on its own.
-      stopVoice();
-      return;
-    }
     if (spokenRef.current === lineIndex + 1) return;
     spokenRef.current = lineIndex + 1;
     speakLine(SCRIPT_LINES[lineIndex].text, {
@@ -229,10 +227,10 @@ function ActiveCallScreen({
       pitch: 1,
       volume: volumeRef.current,
     });
-  }, [muted, lineIndex]);
+  }, [lineIndex]);
 
   // Leaving the screen (ending the call, navigating away) stops the voice.
-  useEffect(() => () => stopVoice(), []);
+  useEffect(() => () => { stopVoice(); spokenRef.current = 0; }, []);
 
   return (
     <div
@@ -249,6 +247,7 @@ function ActiveCallScreen({
         <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.1em] text-white/80">
           Simulated call
         </span>
+        <FakeCallHelp />
         <span className="font-mono text-[13px] text-white/70 tabular">{`${mm}:${ss}`}</span>
       </div>
 
@@ -258,7 +257,7 @@ function ActiveCallScreen({
           <h2 className="text-xl font-bold">{caller.label}</h2>
           <p className="mt-0.5 text-[12.5px] text-white/60">
             {muted
-              ? 'Connected · muted'
+              ? 'Connected · microphone muted (simulated)'
               : speechSupported
                 ? 'Connected · simulated voice'
                 : 'Connected · text only on this device'}
@@ -302,7 +301,7 @@ function ActiveCallScreen({
             {speaker ? <Volume2 size={18} /> : <VolumeX size={18} />}
           </CallControl>
           <CallControl active={false} onClick={() => store.toggleUi('sosPanelOpen', true)} label="Quick SOS" danger>
-            <ShieldQuestion size={18} />
+            <ShieldAlert size={18} />
           </CallControl>
         </div>
         <button
@@ -336,6 +335,7 @@ function CallControl({
       type="button"
       onClick={onClick}
       aria-label={label}
+      aria-pressed={active}
       className={cn(
         'flex h-12 items-center justify-center gap-2 rounded-2xl border text-[12.5px] font-semibold transition-state',
         active ? 'border-white/25 bg-white/15 text-white' : 'border-white/10 bg-white/5 text-white/70 hover:bg-white/10',

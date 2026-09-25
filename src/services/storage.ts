@@ -10,7 +10,7 @@
 export interface StorageAdapter {
   readonly kind: 'local' | 'memory' | 'firebase';
   read<T>(key: string): T | null;
-  write<T>(key: string, value: T): void;
+  write<T>(key: string, value: T, requireDurable?: boolean): void;
   remove(key: string): void;
   clearNamespace(): void;
 }
@@ -51,12 +51,14 @@ class LocalStorageAdapter implements StorageAdapter {
     }
   }
 
-  write<T>(key: string, value: T): void {
+  write<T>(key: string, value: T, requireDurable?: boolean): void {
     const raw = JSON.stringify(value);
+    if (requireDurable && !this.available) throw new Error('Persistent storage is unavailable.');
     try {
       if (this.available) window.localStorage.setItem(namespaced(key), raw);
       else this.memory.set(namespaced(key), raw);
     } catch {
+      if (requireDurable) throw new Error('Could not save changes. Device storage may be full.');
       // Quota or private-mode failure: fall back to in-memory for this session.
       this.memory.set(namespaced(key), raw);
     }
@@ -95,7 +97,8 @@ class MemoryStorageAdapter implements StorageAdapter {
     return raw ? (JSON.parse(raw) as T) : null;
   }
 
-  write<T>(key: string, value: T): void {
+  write<T>(key: string, value: T, requireDurable?: boolean): void {
+    if (requireDurable) throw new Error('Persistent storage is unavailable.');
     this.store.set(key, JSON.stringify(value));
   }
 

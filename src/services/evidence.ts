@@ -107,3 +107,29 @@ export function syntheticVoiceNoteBuffer(seconds = 3): ArrayBuffer {
 export function evidenceAttachSummary(record: EvidenceRecord): string {
   return `${record.fileName} · ${record.hashMethod === 'sha256-webcrypto' ? 'SHA-256' : 'fallback digest'} ${record.sha256.slice(0, 12)}…`;
 }
+
+/** Reject executable/active documents; never render user HTML/SVG inline. */
+export const EVIDENCE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp',
+  'application/pdf', 'text/plain', 'audio/wav', 'audio/x-wav', 'audio/mpeg', 'audio/mp4',
+  'audio/ogg', 'audio/webm', 'video/mp4', 'video/webm', 'video/quicktime'];
+export const MAX_EVIDENCE_BYTES = 10 * 1024 * 1024;
+export function validateEvidenceFile(file: Pick<File, 'size' | 'type' | 'name'>): void {
+  if (!file.size) throw new Error('The selected file is empty.');
+  if (file.size > MAX_EVIDENCE_BYTES) throw new Error('Evidence files must be 10 MB or smaller.');
+  if (!EVIDENCE_MIME_TYPES.includes(file.type.toLowerCase()) || /\.(html?|svg|js|exe|sh)$/i.test(file.name)) {
+    throw new Error('Unsupported file. Choose an image, PDF, text, audio or video file.');
+  }
+}
+
+/** FileReader also supports browsers without Blob.arrayBuffer(). */
+export async function readEvidenceFile(file: File): Promise<ArrayBuffer> {
+  validateEvidenceFile(file);
+  if (typeof file.arrayBuffer === 'function') return file.arrayBuffer();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as ArrayBuffer);
+    reader.onerror = () => reject(new Error('Could not read the selected file.'));
+    reader.onabort = () => reject(new Error('File reading was cancelled.'));
+    reader.readAsArrayBuffer(file);
+  });
+}

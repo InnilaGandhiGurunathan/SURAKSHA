@@ -33,13 +33,13 @@ export interface SurakshaBackend {
   saveEvents(events: SafetyEvent[]): void;
 
   loadIncidents(): Incident[];
-  saveIncidents(incidents: Incident[]): void;
+  saveIncidents(incidents: Incident[], requireDurable?: boolean): void;
 
   loadContacts(): TrustedContact[] | null;
   saveContacts(contacts: TrustedContact[]): void;
 
   loadAlerts(): GuardianAlert[];
-  saveAlerts(alerts: GuardianAlert[]): void;
+  saveAlerts(alerts: GuardianAlert[], requireDurable?: boolean): void;
 
   loadProfiles(): { traveller: UserProfile; guardian: UserProfile } | null;
   saveProfiles(profiles: { traveller: UserProfile; guardian: UserProfile }): void;
@@ -52,6 +52,11 @@ export interface SurakshaBackend {
 
   loadRole(): string | null;
   saveRole(role: string): void;
+
+  /** One committed snapshot for same-origin tabs; UI/role state stays local. */
+  loadSession<T>(): T | null;
+  saveSession<T>(session: T): void;
+  subscribeSession(listener: () => void): () => void;
 
   loadMeta(): { version: number } | null;
   saveMeta(meta: { version: number }): void;
@@ -85,8 +90,8 @@ class LocalBackend implements SurakshaBackend {
   loadIncidents() {
     return this.adapter.read<Incident[]>(STORAGE_KEYS.incidents) ?? [];
   }
-  saveIncidents(incidents: Incident[]) {
-    this.adapter.write(STORAGE_KEYS.incidents, incidents);
+  saveIncidents(incidents: Incident[], requireDurable = false) {
+    this.adapter.write(STORAGE_KEYS.incidents, incidents, requireDurable);
   }
 
   loadContacts() {
@@ -99,8 +104,8 @@ class LocalBackend implements SurakshaBackend {
   loadAlerts() {
     return this.adapter.read<GuardianAlert[]>(STORAGE_KEYS.alerts) ?? [];
   }
-  saveAlerts(alerts: GuardianAlert[]) {
-    this.adapter.write(STORAGE_KEYS.alerts, alerts);
+  saveAlerts(alerts: GuardianAlert[], requireDurable = false) {
+    this.adapter.write(STORAGE_KEYS.alerts, alerts, requireDurable);
   }
 
   loadProfiles() {
@@ -129,6 +134,17 @@ class LocalBackend implements SurakshaBackend {
   }
   saveRole(role: string) {
     this.adapter.write(STORAGE_KEYS.role, role);
+  }
+
+  loadSession<T>() { return this.adapter.read<T>(STORAGE_KEYS.session); }
+  saveSession<T>(session: T) { this.adapter.write(STORAGE_KEYS.session, session); }
+  subscribeSession(listener: () => void) {
+    if (typeof window === 'undefined') return () => undefined;
+    const handler = (event: StorageEvent) => {
+      if (event.storageArea === window.localStorage && event.key === 'suraksha.v1.session') listener();
+    };
+    window.addEventListener('storage', handler);
+    return () => window.removeEventListener('storage', handler);
   }
 
   loadMeta() {

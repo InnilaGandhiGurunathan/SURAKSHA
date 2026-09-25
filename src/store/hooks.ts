@@ -1,3 +1,4 @@
+import { alertBelongsToGuardian } from '@/domain/guardianScope';
 /** React bindings for the store (external-store subscription, no context churn). */
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
@@ -82,4 +83,10 @@ export function useCircle() {
     const backup = contacts.find((c) => c.slots.includes('backup')) ?? null;
     return { contacts, primary, backup };
   }, [contacts]);
+}
+
+/** Use the same guardian scope for list, badges and dashboard counts. */
+export function useGuardianAlerts() {
+  const { alerts, guardianProfile } = useAppState();
+  return alerts.filter((alert) => alertBelongsToGuardian(alert, guardianProfile));
 }

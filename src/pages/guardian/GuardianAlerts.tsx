@@ -1,3 +1,4 @@
+import { useGuardianAlerts } from '@/store/hooks';
 /** Guardian alerts — one card per state change, newest first. */
 
 import { Link } from 'react-router-dom';
@@ -20,8 +21,10 @@ import { toneForBand } from '@/lib/status';
 import { cn } from '@/lib/cn';
 
 export function GuardianAlerts() {
-  const { alerts, journey, incidents, now, contacts } = useAppState();
+  const { journey, incidents, now, contacts } = useAppState();
 
+  const alerts = useGuardianAlerts();
+  const unread = alerts.filter((a) => !a.read).length;
   const open = alerts.filter((a) => !a.acknowledgedAt);
   const acknowledged = alerts.filter((a) => a.acknowledgedAt);
 
@@ -36,8 +39,9 @@ export function GuardianAlerts() {
             <Chip tone={open.length ? 'critical' : 'safe'}>
               <BellRing size={12} /> {open.length} open
             </Chip>
+            <Chip tone={unread ? 'brand' : 'neutral'}>{unread} unread</Chip>
             {alerts.length ? (
-              <Button size="sm" variant="outline" onClick={() => store.markAlertsRead()}>
+              <Button size="sm" variant="outline" disabled={!unread} onClick={() => store.markAlertsRead()}>
                 Mark all read
               </Button>
             ) : null}
@@ -58,6 +62,7 @@ export function GuardianAlerts() {
           <SectionHeading title="Awaiting acknowledgement" description="These need a human to respond." />
           <ul className="space-y-3">
             {open.map((alert) => {
+              const linkedJourney = journey?.id === alert.journeyId ? journey : null;
               const tone = toneForBand(alert.band);
               const incident = incidents.find((i) => i.id === alert.incidentId) ?? null;
               const action = guardianActionFor(alert.band);
@@ -72,6 +77,7 @@ export function GuardianAlerts() {
                         <span className="flex flex-wrap items-center gap-2">
                           {alert.band === 'CRITICAL' ? <Siren size={16} /> : <ShieldAlert size={16} />}
                           {alert.title}
+                          <Badge tone={alert.read ? 'neutral' : 'brand'}>{alert.read ? 'Read' : 'Unread'}</Badge>
                           <StatusPill band={alert.band} size="sm" showEmoji={false} />
                         </span>
                       }
@@ -80,13 +86,13 @@ export function GuardianAlerts() {
                     />
                     <CardBody className="space-y-3">
                       <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                        <Fact label="Traveller" value={journey?.travellerName ?? '—'} />
-                        <Fact label="Risk score" value={journey ? `${journey.risk.score} / 100` : '—'} />
-                        <Fact label="Location" value={journey?.locationAvailable ? journey.destinationLabel + ' route' : 'Last known'} />
+                        <Fact label="Traveller" value={alert.travellerName ?? incident?.travellerName ?? linkedJourney?.travellerName ?? '—'} />
+                        <Fact label="Risk score" value={alert.riskScore != null ? `${alert.riskScore} / 100` : 'Not recorded'} />
+                        <Fact label="Location" value={alert.locationLabel ?? incident?.locationLabel ?? 'Not recorded'} />
                         <Fact label="Incident ID" value={incident?.code ?? 'Not created'} />
                         <Fact
                           label="Last update"
-                          value={journey ? formatRelative(journey.lastPositionAt, now) : formatRelative(alert.createdAt, now)}
+                          value={formatRelative(alert.createdAt, now)}
                         />
                       </dl>
 

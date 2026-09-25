@@ -163,7 +163,7 @@ export function scoreRisk(inputs: RiskInputs): RiskAssessment {
         delta: RISK_WEIGHTS.lateArrival,
         detail:
           inputs.lateMinutes > 0
-            ? `${Math.round(inputs.lateMinutes)} min past the expected arrival window (detours included)`
+            ? `${inputs.lateMinutes < 1 ? 'Less than 1' : Math.round(inputs.lateMinutes)} min past the expected arrival window (detours included)`
             : 'Expected arrival time has passed',
       },
     );

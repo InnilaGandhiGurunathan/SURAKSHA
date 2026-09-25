@@ -58,7 +58,13 @@ export function EventTimeline({
   limit?: number;
   grouped?: boolean;
 }) {
-  const sorted = [...events].sort((a, b) => b.timestamp - a.timestamp);
+  // Older builds emitted two cards for one confirmation. Keep both audit
+  // events in storage, but display one correctly classified check-in entry.
+  const completed = new Set(events.filter((e) => e.type === 'checkin_completed')
+    .map((e) => `${e.journeyId}:${e.userId}:${e.timestamp}`));
+  const sorted = events.filter((e) => e.type !== 'safe_confirmed' ||
+    !completed.has(`${e.journeyId}:${e.userId}:${e.timestamp}`))
+    .sort((a, b) => b.timestamp - a.timestamp);
   const visible = typeof limit === 'number' ? sorted.slice(0, limit) : sorted;
 
   if (!visible.length) {
