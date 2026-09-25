@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { EMPTY_RISK_INPUTS, RISK_WEIGHTS, bandForScore, explainScore, scoreRisk } from './riskEngine';
 
 describe('Safety Risk Engine', () => {
@@ -244,5 +244,46 @@ describe('Safety Risk Engine', () => {
       // The band is never out of step with the number.
       expect(bandForScore(assessment.score)).toBe(assessment.band);
     }
+  });
+});
+
+describe('Safety Risk Engine — purity', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('does not read the wall clock: identical inputs score identically hours apart', () => {
+    /*
+     * `scoreRisk()` is documented as pure, but it used to return
+     * `computedAt: Date.now()` — so the same inputs produced a different object
+     * depending on when you asked, and any screen rendering that field would
+     * have shown a real-world time beside simulated ones.
+     */
+    const inputs = {
+      ...EMPTY_RISK_INPUTS,
+      inRiskZone: true,
+      deviationCount: 1,
+      missedCheckInCount: 1,
+    };
+
+    const spy = vi.spyOn(Date, 'now').mockReturnValue(1_700_000_000_000);
+    const early = scoreRisk(inputs);
+    spy.mockReturnValue(1_700_000_000_000 + 6 * 60 * 60 * 1000);
+    const late = scoreRisk(inputs);
+
+    expect(late).toEqual(early);
+    expect(JSON.stringify(late)).toBe(JSON.stringify(early));
+    // 15 zone + 20 deviation + 25 missed + 22 compounding - 8 ceiling = 74.
+    expect(early.score).toBe(74);
+  });
+
+  it('carries no field that could leak a real-world timestamp', () => {
+    const assessment = scoreRisk({ ...EMPTY_RISK_INPUTS, missedCheckInCount: 1 });
+    const numbers = Object.values(assessment).filter((v): v is number => typeof v === 'number');
+    for (const value of numbers) {
+      // Scores and deltas are small; a wall-clock ms value would be ~1.7e12.
+      expect(value).toBeLessThan(1_000_000);
+    }
+    expect(Object.keys(assessment)).not.toContain('computedAt');
   });
 });

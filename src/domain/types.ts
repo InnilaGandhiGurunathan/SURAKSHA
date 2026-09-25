@@ -88,7 +88,6 @@ export interface RiskAssessment {
   headline: string;
   /** True when the score was produced purely by confirmed-safe recovery. */
   hasRecovery: boolean;
-  computedAt: number;
 }
 
 /* ------------------------------------------------------------------ */

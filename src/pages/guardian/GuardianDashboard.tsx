@@ -36,7 +36,7 @@ import { EventTimeline } from '@/components/domain/EventTimeline';
 import { RiskBandLadder, RiskWhyPanel } from '@/components/domain/RiskWhyPanel';
 import { useAppState, useCircle, store } from '@/store/hooks';
 import { formatClock, formatCountdown, formatDurationMinutes, formatRelative, pluralise} from '@/lib/format';
-import { estimatedArrivalAt, linkQuality, remainingMinutes } from '@/domain/journey';
+import { effectiveNow, estimatedArrivalAt, linkQuality, remainingMinutes } from '@/domain/journey';
 import { guardianActionFor } from '@/domain/riskEngine';
 import { toneForBand, TONES } from '@/lib/status';
 import { cn } from '@/lib/cn';
@@ -50,7 +50,13 @@ export function GuardianDashboard() {
   const unacknowledged = alerts.filter((a) => !a.acknowledgedAt);
   const quality = linkQuality(active, now);
   const incident = incidents.find((i) => i.id === active?.incidentId) ?? null;
-  const checkInDue = active?.checkIn.dueAt ? active.checkIn.dueAt - now : null;
+  /*
+   * Measured against the frozen clock so a paused journey reads as on hold.
+   * These countdowns used to drain while the journey was paused, so "paused"
+   * looked like it did nothing on the guardian's screen either.
+   */
+  const clock = effectiveNow(active, now);
+  const checkInDue = active?.checkIn.dueAt ? active.checkIn.dueAt - clock : null;
   const exitArmed = store.getState().exitMode?.active ?? false;
 
   const band = assessment?.band ?? 'SAFE';
@@ -322,12 +328,12 @@ export function GuardianDashboard() {
                     The traveller was asked “Everything okay?” Grace period ends in
                   </p>
                   <p className="text-2xl font-bold tabular text-brand-900">
-                    {formatCountdown(Math.max(0, active.checkIn.expiresAt - now))}
+                    {formatCountdown(Math.max(0, active.checkIn.expiresAt - clock))}
                   </p>
                   <Progress
                     value={Math.max(
                       0,
-                      Math.min(100, ((active.checkIn.expiresAt - now) / (active.gracePeriodMinutes * 60_000)) * 100),
+                      Math.min(100, ((active.checkIn.expiresAt - clock) / (active.gracePeriodMinutes * 60_000)) * 100),
                     )}
                     tone="brand"
                   />

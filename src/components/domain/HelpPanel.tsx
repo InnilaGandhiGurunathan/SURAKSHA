@@ -8,6 +8,7 @@ import { CheckCircle2, MessageSquare, PhoneCall, ShieldAlert, TimerOff, Users } 
 import { Button, Modal } from '@/components/ui/primitives';
 import { useAppState, useCircle, useNow, store } from '@/store/hooks';
 import { formatCountdown } from '@/lib/format';
+import { effectiveNow } from '@/domain/journey';
 import { cn } from '@/lib/cn';
 
 export function HelpPanel() {
@@ -15,7 +16,10 @@ export function HelpPanel() {
   const { primary, backup } = useCircle();
   const now = useNow();
   const helpOpen = Boolean(journey?.helpRequestedAt);
-  const helpRemaining = journey?.helpDeadlineAt ? Math.max(0, journey.helpDeadlineAt - now) : 0;
+  // Pausing freezes the countdown because the escalation itself is frozen.
+  const helpRemaining = journey?.helpDeadlineAt
+    ? Math.max(0, journey.helpDeadlineAt - effectiveNow(journey, now))
+    : 0;
 
   return (
     <Modal

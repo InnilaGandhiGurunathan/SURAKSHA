@@ -86,7 +86,15 @@ export function RiskWhyPanel({
   const t = TONES[tone];
   const positives = assessment.reasons.filter((r) => r.delta > 0);
   const negatives = assessment.reasons.filter((r) => r.delta < 0);
-  const total = assessment.reasons.reduce((sum, r) => sum + r.delta, 0);
+  /*
+   * Show the engine's own number rather than re-summing the lines here.
+   *
+   * The engine guarantees the deltas sum to the score (clamps are emitted as
+   * their own reason lines), so this is the same number — but computing it a
+   * second time meant the panel could contradict the headline if the two ever
+   * drifted. One source of truth for the arithmetic.
+   */
+  const total = assessment.score;
 
   return (
     <div className={cn('overflow-hidden rounded-xl border', t.border, t.surface, className)}>
@@ -138,7 +146,7 @@ export function RiskWhyPanel({
           <div className="flex items-center justify-between rounded-lg bg-white/80 px-3 py-2">
             <span className="text-[12.5px] font-semibold text-ink-600">Total</span>
             <span className="text-[13px] font-bold text-ink-900 tabular">
-              {Math.max(0, Math.min(100, total))}
+              {total}
               <span className="ml-1 text-[11.5px] font-medium text-ink-400">/ 100</span>
             </span>
           </div>

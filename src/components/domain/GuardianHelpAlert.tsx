@@ -15,6 +15,7 @@ import { Button, Modal, StatusPill } from '@/components/ui/primitives';
 import { useAppState, useCircle, useNow, store } from '@/store/hooks';
 import { describePosition } from '@/store/store';
 import { formatCountdown } from '@/lib/format';
+import { effectiveNow } from '@/domain/journey';
 import { cn } from '@/lib/cn';
 
 export function GuardianHelpAlert() {
@@ -31,7 +32,10 @@ export function GuardianHelpAlert() {
 
   if (!journey) return null;
 
-  const remaining = journey.helpDeadlineAt ? Math.max(0, journey.helpDeadlineAt - now) : 0;
+  // Matches the traveller's panel, and freezes with the journey.
+  const remaining = journey.helpDeadlineAt
+    ? Math.max(0, journey.helpDeadlineAt - effectiveNow(journey, now))
+    : 0;
   const urgent = remaining <= 45_000;
 
   return (

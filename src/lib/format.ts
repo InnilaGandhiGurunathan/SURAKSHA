@@ -91,6 +91,10 @@ export function minutesFrom(ts: number, minutes: number): number {
   return ts + minutes * 60_000;
 }
 
-export function nowLabel(): string {
-  return formatClock(Date.now());
-}
+/*
+ * There is deliberately no `nowLabel()` here any more.
+ *
+ * It read `Date.now()` and had no callers — a trap waiting for the next person
+ * who wanted "the current time" in a UI that actually runs on the store's
+ * virtual clock. Format a timestamp from state (`formatClock(now)`) instead.
+ */

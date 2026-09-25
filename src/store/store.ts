@@ -1369,6 +1369,8 @@ export class SurakshaStore {
       title: input.title,
       body: input.body,
       only: input.only.filter(Boolean),
+      // The store owns the clock, so receipts share the timeline they appear in.
+      at: this.state.now,
     });
 
     this.set({ receipts: [...receipts, ...this.state.receipts].slice(0, 60) });

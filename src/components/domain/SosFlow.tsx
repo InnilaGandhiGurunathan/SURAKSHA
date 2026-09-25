@@ -108,7 +108,7 @@ export function SosPanel() {
             <Fact icon={<ShieldCheck size={15} />} label="Escalation" value={`${incident.escalationOrder.length} trusted contacts`} />
           </dl>
 
-          <RiskWhyPanel assessment={journey?.risk ?? { score: incident.riskScore, band: 'CRITICAL', reasons: incident.riskReasons, headline: incident.summary, hasRecovery: false, computedAt: incident.createdAt }} />
+          <RiskWhyPanel assessment={journey?.risk ?? { score: incident.riskScore, band: 'CRITICAL', reasons: incident.riskReasons, headline: incident.summary, hasRecovery: false }} />
 
           <div className="rounded-xl border border-critical-200 bg-critical-50 px-3.5 py-3">
             <p className="flex items-start gap-2 text-[12.5px] font-medium leading-relaxed text-critical-800">

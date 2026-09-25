@@ -64,6 +64,11 @@ export function presentEvent(event: SafetyEvent): EventPresentation {
     const value = event.metadata[key];
     return typeof value === 'string' ? value : undefined;
   };
+  const flag = (key: string): boolean => event.metadata[key] === true || event.metadata[key] === 'true';
+  const count = (key: string): number | undefined => {
+    const value = event.metadata[key];
+    return typeof value === 'number' ? value : undefined;
+  };
 
   switch (event.type) {
     case 'journey_started':
@@ -89,6 +94,22 @@ export function presentEvent(event: SafetyEvent): EventPresentation {
     case 'safe_confirmed':
       return { label: 'Safety confirmed by traveller', tone: 'safe', icon: 'check' };
     case 'help_requested':
+      /*
+       * One event type covers two very different things: the traveller asking
+       * for help, and that request escalating because nobody reached them. Both
+       * used to render as "Traveller requested help", so the timeline hid the
+       * escalation — the exact thing #4 and #10 were about.
+       */
+      if (flag('escalated')) {
+        const waited = count('waitedMinutes');
+        return {
+          label: waited
+            ? `Help request escalated — nobody reached the traveller within ${waited} min`
+            : 'Help request escalated — nobody reached the traveller in time',
+          tone: 'critical',
+          icon: 'shield-alert',
+        };
+      }
       return { label: 'Traveller requested help', tone: 'alert', icon: 'shield-alert' };
     case 'exit_mode_started':
       return { label: `Exit Mode started (${detail('contact') ?? 'simulated call'})`, tone: 'brand', icon: 'phone' };

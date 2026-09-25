@@ -137,6 +137,12 @@ export function bandRange(band: RiskBand): { min: number; max: number } {
  * Deterministically score a journey. `scoreRisk()` is pure: the same inputs
  * always produce the same score and the same ordered reason list, and the
  * reason deltas always sum to the returned score.
+ *
+ * It reads no clock. An earlier version stamped the result with
+ * `computedAt: Date.now()`, which made a function documented as pure depend on
+ * the wall clock — and would have shown a real-world time beside a simulated
+ * one the first time anything rendered it. Nothing ever read the field, so it
+ * is gone rather than threaded through every caller.
  */
 export function scoreRisk(inputs: RiskInputs): RiskAssessment {
   const reasons: RiskReason[] = [];
@@ -410,7 +416,6 @@ export function scoreRisk(inputs: RiskInputs): RiskAssessment {
     reasons,
     headline: headlineFor(band, inputs, reasons),
     hasRecovery: reasons.some((r) => r.code === 'safe_confirmation'),
-    computedAt: Date.now(),
   };
 }
 

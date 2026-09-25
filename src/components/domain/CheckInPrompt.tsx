@@ -8,6 +8,7 @@ import { CheckCircle2, Clock, HelpCircle, ShieldQuestion, TimerOff } from 'lucid
 import { Button, Modal } from '@/components/ui/primitives';
 import { useAppState, useNow, store } from '@/store/hooks';
 import { formatClock, formatCountdown } from '@/lib/format';
+import { effectiveNow } from '@/domain/journey';
 import { cn } from '@/lib/cn';
 
 export function CheckInPrompt() {
@@ -16,7 +17,10 @@ export function CheckInPrompt() {
   const open = Boolean(ui.checkInPromptOpen && journey && journey.checkIn.state === 'REQUESTED');
 
   if (!journey) return null;
-  const remaining = journey.checkIn.expiresAt ? Math.max(0, journey.checkIn.expiresAt - now) : 0;
+  // Frozen while paused, so the grace period cannot appear to expire on hold.
+  const remaining = journey.checkIn.expiresAt
+    ? Math.max(0, journey.checkIn.expiresAt - effectiveNow(journey, now))
+    : 0;
   const urgent = remaining <= 45_000;
 
   return (
