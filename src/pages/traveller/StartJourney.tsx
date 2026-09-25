@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/primitives';
 import { PageHeader } from '@/components/domain/blocks';
 import { JourneyMap } from '@/components/map/JourneyMap';
+import { useMapSurface } from '@/components/map/useGoogleMaps';
 import { useAppState, useCircle, store } from '@/store/hooks';
 import { CHECK_IN_OPTIONS, ROUTE_PRESETS } from '@/domain/seed';
 import { formatClock } from '@/lib/format';
@@ -29,6 +30,7 @@ export function StartJourney() {
   const { travellerProfile, contacts, now, journey } = useAppState();
   const { primary, backup } = useCircle();
   const navigate = useNavigate();
+  const mapSurface = useMapSurface();
 
   const [origin, setOrigin] = useState(travellerProfile.campusLabel);
   const [destination, setDestination] = useState(travellerProfile.homeLabel);
@@ -314,7 +316,11 @@ export function StartJourney() {
 
         <div className="space-y-4">
           <Card className="overflow-hidden">
-            <CardHeader title="Route preview" subtitle="Simulated map · check-ins marked along the corridor." icon={<Route size={16} />} />
+            <CardHeader
+              title="Route preview"
+              subtitle={`${mapSurface.headerLabel} · check-ins marked along the corridor.`}
+              icon={<Route size={16} />}
+            />
             <CardBody className="pt-3">
               <JourneyMap
                 journey={null}

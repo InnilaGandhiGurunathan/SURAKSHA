@@ -29,6 +29,8 @@ import {
   Rocket,
 } from 'lucide-react';
 import { Button, Chip, Segmented, StatusPill } from '@/components/ui/primitives';
+import { GoogleMapsDebugPanel } from '@/components/map/MapsDebugPanel';
+import { useGoogleMapsStatus } from '@/components/map/useGoogleMaps';
 import { cn } from '@/lib/cn';
 import { store, useAppState } from '@/store/hooks';
 import { DEMO_SPEEDS } from '@/store/store';
@@ -348,6 +350,8 @@ export function DemoPanel() {
             ) : null}
           </section>
 
+          <MapsSection />
+
           <section className="mt-5 rounded-xl border border-ink-200 bg-white px-4 py-3">
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -417,6 +421,45 @@ export function DemoPanel() {
         </footer>
       </aside>
     </div>
+  );
+}
+
+/**
+ * Map engine status, kept next to the other demo switches: the presenter can
+ * see whether a Google key is present (and flip back to the reliable simulated
+ * map before going on stage) without leaving the panel.
+ */
+function MapsSection() {
+  const [open, setOpen] = useState(false);
+  const status = useGoogleMapsStatus();
+  return (
+    <section className="mt-5 rounded-xl border border-ink-200 bg-white px-4 py-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[13px] font-semibold text-ink-800">Map engine</p>
+          <p className="mt-0.5 text-[11.5px] leading-snug text-ink-500">
+            {status.verdict === 'ready'
+              ? `Live Google tiles · ${status.keyMasked}`
+              : status.configured
+                ? `Key ${status.keyMasked} found · ${status.loader.state}`
+                : 'Simulated map — VITE_GOOGLE_MAPS_API_KEY is not set'}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setOpen((value) => !value)}
+          aria-expanded={open}
+          className="shrink-0 rounded-lg border border-ink-200 px-2 py-1 text-[11.5px] font-semibold text-ink-600 transition-state hover:bg-ink-50"
+        >
+          {open ? 'Hide' : 'Check key'}
+        </button>
+      </div>
+      {open ? (
+        <div className="mt-3 border-t border-ink-100 pt-3">
+          <GoogleMapsDebugPanel compact />
+        </div>
+      ) : null}
+    </section>
   );
 }
 
