@@ -24,6 +24,7 @@ import { Toaster } from './Toaster';
 import { DemoPanel } from './DemoPanel';
 import { RoleSwitcher } from './RoleSwitcher';
 import { Badge } from '@/components/ui/primitives';
+import { BrandLogo } from '@/components/brand/BrandLogo';
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { role, journey, travellerProfile, exitMode, ready } = useAppState();
@@ -48,9 +49,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     return (
       <div className="grid min-h-screen place-items-center bg-ink-50">
         <div className="flex flex-col items-center gap-3">
-          <span className="grid h-12 w-12 place-items-center rounded-2xl bg-brand-600 text-white shadow-raised">
-            <ShieldCheck size={22} />
-          </span>
+          <BrandLogo size="xl" variant="full" showTagline={false} />
           <p className="text-sm font-semibold text-ink-600">Loading SURAKSHA…</p>
         </div>
       </div>
@@ -205,15 +204,7 @@ function Sidebar({
   return (
     <aside className="sticky top-0 hidden h-screen w-[264px] shrink-0 flex-col border-r border-ink-200 bg-white lg:flex xl:w-[276px]">
       <div className="flex items-center gap-2.5 px-5 py-5">
-        <span className="grid h-9 w-9 place-items-center rounded-xl bg-brand-600 text-white shadow-sm">
-          <ShieldCheck size={18} />
-        </span>
-        <span className="min-w-0">
-          <span className="block text-[15px] font-bold leading-tight tracking-tight text-ink-900">SURAKSHA</span>
-          <span className="block text-[10.5px] font-semibold uppercase tracking-[0.1em] text-ink-400">
-            Safety Before SOS
-          </span>
-        </span>
+        <BrandLogo size="md" variant="full" />
       </div>
 
       <div className="px-4 pb-3">
@@ -282,10 +273,7 @@ function TopBar({
     <header className="sticky top-0 z-30 border-b border-ink-200 bg-white/85 backdrop-blur">
       <div className="mx-auto flex w-full max-w-[1180px] items-center gap-3 px-4 py-3 sm:px-6">
         <span className="flex items-center gap-2 lg:hidden">
-          <span className="grid h-8 w-8 place-items-center rounded-lg bg-brand-600 text-white">
-            <ShieldCheck size={16} />
-          </span>
-          <span className="text-[14.5px] font-bold tracking-tight text-ink-900">SURAKSHA</span>
+          <BrandLogo size="sm" variant="full" showTagline={false} />
         </span>
 
         <div className="hidden min-w-0 items-center gap-2 lg:flex">
