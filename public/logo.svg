@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <style>
+      .word { font-family: 'Montserrat','Arial Black','Helvetica Neue',Arial,sans-serif; font-weight: 800; letter-spacing: 8px; }
+    </style>
+  </defs>
+  <!-- Off-white background -->
+  <rect width="512" height="512" fill="#f7f7f5"/>
+  <g transform="translate(256 225)">
+    <!-- Compass rose points (light teal) -->
+    <g fill="#7ed0d3">
+      <polygon points="0,-162 12,-102 -12,-102" />
+      <polygon points="118,-26 72,-12 86,-48" />
+      <polygon points="-118,-26 -72,-12 -86,-48" />
+      <polygon points="0,62 12,2 -12,2" />
+    </g>
+    <!-- Black shield U arc -->
+    <path d="M -152 -72 C -162 58 0 148 152 -72"
+          fill="none" stroke="#161616" stroke-width="9" stroke-linecap="round"/>
+    <!-- Blue S-road body -->
+    <path d="
+      M 48 -124
+      C -4 -138 -92 -122 -98 -72
+      C -104 -22 -42 -2 -22 8
+      C 32 28 96 42 102 92
+      C 108 138 52 150 -92 118
+      L -102 98
+      C -52 112 28 108 54 88
+      C 76 72 60 46 20 30
+      C -50 6 -112 -12 -122 -58
+      C -132 -112 -70 -154 48 -138 Z"
+      fill="#0b3cad"/>
+    <!-- White dashed center lane -->
+    <g fill="#ffffff">
+      <rect x="-72" y="-120" width="20" height="7" rx="3" transform="rotate(-25 -62 -117)"/>
+      <rect x="-50" y="-92" width="20" height="7" rx="3" transform="rotate(-8 -40 -89)"/>
+      <rect x="-30" y="-58" width="20" height="7" rx="3" transform="rotate(22 -20 -55)"/>
+      <rect x="-2" y="-22" width="20" height="7" rx="3" transform="rotate(40 8 -19)"/>
+      <rect x="26" y="4" width="20" height="7" rx="3" transform="rotate(25 36 7)"/>
+      <rect x="56" y="30" width="20" height="7" rx="3" transform="rotate(-5 66 33)"/>
+      <rect x="66" y="64" width="20" height="7" rx="3" transform="rotate(-30 76 67)"/>
+      <rect x="28" y="96" width="22" height="7" rx="3" transform="rotate(-10 39 99)"/>
+      <rect x="-32" y="106" width="24" height="7" rx="3"/>
+      <rect x="-86" y="100" width="24" height="7" rx="3" transform="rotate(12 -74 103)"/>
+    </g>
+    <!-- Needle eye (top of S) -->
+    <circle cx="42" cy="-118" r="24" fill="#ffffff" stroke="#0b3cad" stroke-width="4"/>
+    <circle cx="42" cy="-118" r="11" fill="#7ed0d3"/>
+    <!-- Black compass needle pointing NE -->
+    <polygon points="42,-118 132,-158 62,-98" fill="#161616"/>
+  </g>
+  <!-- SURAKSHA wordmark — lambdas for the A's -->
+  <g transform="translate(256 448)" class="word" fill="#0b3cad">
+    <text text-anchor="middle" font-size="82">SURΛKSHΛ</text>
+  </g>
+</svg>

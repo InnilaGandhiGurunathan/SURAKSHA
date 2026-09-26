@@ -24,13 +24,13 @@ import {
   Mail,
   MapPin,
   Route,
-  ShieldCheck,
   Sparkles,
   Waypoints,
 } from 'lucide-react';
 import { useAuth, authStore as importedAuthStore } from '@/store/authStore';
 import { isSupabaseConfigured, supabaseConfigReadout } from '@/services/supabase';
 import { resolveAuthState } from '@/services/auth';
+import { BrandLogo } from '@/components/brand/BrandLogo';
 
 const authStore = importedAuthStore;
 
@@ -127,17 +127,7 @@ export function Login() {
       <div className="relative z-10 mx-auto grid min-h-screen w-full max-w-6xl gap-10 px-5 py-10 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:gap-16">
         {/* Brand panel */}
         <section className="order-2 lg:order-1">
-          <div className="flex items-center gap-3">
-            <span className="relative grid h-12 w-12 place-items-center rounded-2xl bg-brand-500 shadow-[0_0_40px_rgba(68,104,240,0.5)]">
-              <ShieldCheck size={24} />
-            </span>
-            <span>
-              <span className="block text-xl font-bold tracking-tight">SURAKSHA</span>
-              <span className="block text-[11px] font-semibold uppercase tracking-[0.22em] text-ink-300">
-                Safety Before SOS
-              </span>
-            </span>
-          </div>
+          <BrandLogo size="xl" variant="full" invert className="gap-3" />
 
           <h1 className="mt-8 text-4xl font-bold leading-[1.08] tracking-tight sm:text-5xl">
             Help starts moving
