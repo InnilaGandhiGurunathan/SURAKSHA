@@ -54,6 +54,8 @@ describe('sign-in gateway', () => {
   });
 
   it('shows SIGN IN on the SOS surface while signed out', async () => {
+    // A returning (non-fresh) visitor reaches the app shell without auth.
+    window.localStorage.setItem('suraksha.v1.landingVisited', '1');
     window.history.pushState({}, '', '/traveller');
     const view = render(<App />);
     await waitFor(() => expect(view.container.textContent).toMatch(/Safety Before SOS/i), { timeout: 4000 });

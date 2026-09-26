@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/primitives';
 import { store } from '@/store/hooks';
+import { markLandingVisited, useAuth } from '@/store/authStore';
 import { EMERGENCY_NUMBER } from '@/domain/types';
 
 const FLOW = [
@@ -122,6 +123,13 @@ const SCENARIO = [
 
 export function Welcome() {
   const navigate = useNavigate();
+  const { signedIn } = useAuth();
+
+  /** Entering the app records the visit so a reload won't bounce back here. */
+  const enter = (path: string) => {
+    markLandingVisited();
+    navigate(path);
+  };
 
   return (
     <div className="mx-auto max-w-3xl space-y-10 pb-6">
@@ -149,11 +157,11 @@ export function Welcome() {
             block
             icon={<Compass size={17} />}
             trailing={<ArrowRight size={16} />}
-            onClick={() => navigate('/traveller/start')}
+            onClick={() => enter(signedIn ? '/traveller/start' : '/login')}
           >
-            Start your journey
+            {signedIn ? 'Start your journey' : 'Get started'}
           </Button>
-          <Button size="lg" block variant="outline" onClick={() => navigate('/traveller')}>
+          <Button size="lg" block variant="outline" onClick={() => enter('/traveller')}>
             Open SURAKSHA
           </Button>
         </div>
@@ -229,7 +237,7 @@ export function Welcome() {
           className="mt-6"
           variant="secondary"
           icon={<Compass size={16} />}
-          onClick={() => navigate('/traveller/start')}
+          onClick={() => enter(signedIn ? '/traveller/start' : '/login')}
         >
           Try it yourself — plan a journey
         </Button>

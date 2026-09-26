@@ -16,10 +16,20 @@ import { render, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { App } from '@/App';
 import { store as appStore } from '@/store/hooks';
+import { authStore } from '@/store/authStore';
 
 function boot(path: string) {
   window.history.pushState({}, '', path);
   return render(<App />);
+}
+
+/**
+ * The landing (Welcome) is the first thing a *fresh* visitor sees at `/`; the
+ * boot tests walk the in-app routes, so simulate a returning visitor — what
+ * "Open SURAKSHA" writes to localStorage.
+ */
+function seenLanding() {
+  window.localStorage.setItem('suraksha.v1.landingVisited', '1');
 }
 
 /** Waits for hydration to replace the splash screen inside this render only. */
@@ -40,6 +50,8 @@ describe('application boot', () => {
     window.localStorage.clear();
     appStore.stop();
     appStore.resetDemo();
+    authStore.resetLocalAuth();
+    seenLanding();
   });
 
   it('boots past the splash screen into the traveller home', async () => {
@@ -153,6 +165,28 @@ describe('application boot', () => {
     expect(appStore.getState().events).toHaveLength(0);
     // Deliberate: a judge resetting mid-demo stays on the view they are showing.
     expect(appStore.getState().role).toBe('guardian');
+    view.unmount();
+  });
+
+  it('shows the landing (Welcome) first to a fresh visitor, then lets them in', async () => {
+    // Brand-new visitor: no landing visit recorded, no auth.
+    window.localStorage.removeItem('suraksha.v1.landingVisited');
+    authStore.resetLocalAuth();
+
+    const view = boot('/');
+    // The landing is the first thing — the app shell is not shown.
+    await waitFor(
+      () => expect(within(view.container).getByRole('heading', { level: 1, name: /Safety shouldn.t begin with SOS/i })).toBeTruthy(),
+      { timeout: 4000 },
+    );
+    expect(within(view.container).queryByText(/Aarav Sharma/i)).toBeNull();
+
+    // "Open SURAKSHA" records the visit and lands on the traveller home.
+    await userEvent.click(within(view.container).getByRole('button', { name: /Open SURAKSHA/i }));
+    await waitFor(() => expect(within(view.container).getAllByText(/Aarav Sharma/i).length).toBeGreaterThan(0), {
+      timeout: 4000,
+    });
+    expect(window.localStorage.getItem('suraksha.v1.landingVisited')).toBe('1');
     view.unmount();
   });
 });

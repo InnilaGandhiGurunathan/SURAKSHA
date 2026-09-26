@@ -20,6 +20,7 @@ import { GuardianIncidents } from '@/pages/guardian/GuardianIncidents';
 import { GuardianContacts } from '@/pages/guardian/GuardianContacts';
 import { GuardianSettings } from '@/pages/guardian/GuardianSettings';
 import { Welcome } from '@/pages/Welcome';
+import { useAuth, landingGateFor } from '@/store/authStore';
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -47,55 +48,92 @@ function RoleFromRoute() {
 }
 
 /**
- * AppRoutes — `/login` renders full-screen and standalone. The rest of the app
- * stays browsable behind the demo, while the SOS button now leads into
- * `/login` as the sign-in affordance.
+ * AppRoutes — `/login` and the landing (`/`) render full-screen and standalone.
+ * The landing (Welcome) is the first thing a fresh visitor sees; a signed-in
+ * visitor or one who already entered the app skips straight through.
  */
 function AppRoutes() {
   const { role } = useAppState();
+  const { user } = useAuth();
+  const gate = landingGateFor(user);
   return (
     <>
       <RoleFromRoute />
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/" element={<LandingRoot gate={gate} role={role} />} />
         <Route
           path="*"
           element={
-            <AppShell>
-              <Routes>
-                <Route path="/" element={<Navigate to={role === 'guardian' ? '/guardian' : '/traveller'} replace />} />
-                <Route path="/welcome" element={<Welcome />} />
+            <LandingRedirect gate={gate}>
+              <AppShell>
+                <Routes>
+                  <Route path="/welcome" element={<Welcome />} />
 
-                {/* Traveller */}
-                <Route path="/traveller" element={<TravellerHome />} />
-                <Route path="/traveller/journey" element={<ActiveJourney />} />
-                <Route path="/traveller/start" element={<StartJourney />} />
-                <Route path="/traveller/exit" element={<ExitModePage />} />
-                <Route path="/traveller/circle" element={<TrustedCircle />} />
-                <Route path="/traveller/incidents" element={<TravellerIncidents />} />
-                <Route path="/traveller/incidents/:incidentId" element={<IncidentDetail role="traveller" />} />
-                <Route path="/traveller/community" element={<Community />} />
-                <Route path="/traveller/learn" element={<Learn />} />
-                <Route path="/traveller/profile" element={<Profile />} />
+                  {/* Traveller */}
+                  <Route path="/traveller" element={<TravellerHome />} />
+                  <Route path="/traveller/journey" element={<ActiveJourney />} />
+                  <Route path="/traveller/start" element={<StartJourney />} />
+                  <Route path="/traveller/exit" element={<ExitModePage />} />
+                  <Route path="/traveller/circle" element={<TrustedCircle />} />
+                  <Route path="/traveller/incidents" element={<TravellerIncidents />} />
+                  <Route path="/traveller/incidents/:incidentId" element={<IncidentDetail role="traveller" />} />
+                  <Route path="/traveller/community" element={<Community />} />
+                  <Route path="/traveller/learn" element={<Learn />} />
+                  <Route path="/traveller/profile" element={<Profile />} />
 
-                {/* Guardian */}
-                <Route path="/guardian" element={<GuardianDashboard />} />
-                <Route path="/guardian/journeys" element={<GuardianJourneys />} />
-                <Route path="/guardian/journeys/:journeyId" element={<GuardianJourneys />} />
-                <Route path="/guardian/alerts" element={<GuardianAlerts />} />
-                <Route path="/guardian/incidents" element={<GuardianIncidents />} />
-                <Route path="/guardian/incidents/:incidentId" element={<IncidentDetail role="guardian" />} />
-                <Route path="/guardian/contacts" element={<GuardianContacts />} />
-                <Route path="/guardian/settings" element={<GuardianSettings />} />
+                  {/* Guardian */}
+                  <Route path="/guardian" element={<GuardianDashboard />} />
+                  <Route path="/guardian/journeys" element={<GuardianJourneys />} />
+                  <Route path="/guardian/journeys/:journeyId" element={<GuardianJourneys />} />
+                  <Route path="/guardian/alerts" element={<GuardianAlerts />} />
+                  <Route path="/guardian/incidents" element={<GuardianIncidents />} />
+                  <Route path="/guardian/incidents/:incidentId" element={<IncidentDetail role="guardian" />} />
+                  <Route path="/guardian/contacts" element={<GuardianContacts />} />
+                  <Route path="/guardian/settings" element={<GuardianSettings />} />
 
-                <Route path="*" element={<Navigate to={role === 'guardian' ? '/guardian' : '/traveller'} replace />} />
-              </Routes>
-            </AppShell>
+                  <Route path="*" element={<Navigate to={role === 'guardian' ? '/guardian' : '/traveller'} replace />} />
+                </Routes>
+              </AppShell>
+            </LandingRedirect>
           }
         />
       </Routes>
     </>
   );
+}
+
+/**
+ * `/` is the first thing a visitor sees. Fresh, signed-out visitors get the
+ * full-screen landing; anyone signed in or returning goes straight to the app.
+ */
+function LandingRoot({ gate, role }: { gate: 'landing' | 'app' | 'demo'; role: 'traveller' | 'guardian' }) {
+  if (gate === 'landing') {
+    return (
+      <div className="min-h-screen bg-ink-50 px-4 py-8 sm:px-6">
+        <Welcome />
+      </div>
+    );
+  }
+  return <Navigate to={role === 'guardian' ? '/guardian' : '/traveller'} replace />;
+}
+
+/**
+ * Signed-in visitors, or visitors who already chose to see the app, pass
+ * through. Everyone else is routed to the landing page (`/`).
+ */
+function LandingRedirect({
+  gate,
+  children,
+}: {
+  gate: 'landing' | 'app' | 'demo';
+  children: React.ReactNode;
+}) {
+  const location = useLocation();
+  if (gate === 'landing' && location.pathname !== '/') {
+    return <Navigate to="/" replace />;
+  }
+  return <>{children}</>;
 }
 
 export function App() {

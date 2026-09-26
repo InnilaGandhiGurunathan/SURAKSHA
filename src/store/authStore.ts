@@ -17,6 +17,38 @@ import {
   resolveAuthState,
 } from '@/services/auth';
 
+/** Landing page shows first only for signed-out, first-time visitors. */
+export type LandingGate = 'landing' | 'app' | 'demo';
+
+const LANDING_VISIT_KEY = 'suraksha.v1.landingVisited';
+
+/**
+ * The landing (Welcome) is the first thing a fresh visitor sees at `/`. Once
+ * someone enters the app — sign-in, or "Open SURAKSHA" — their choice is
+ * remembered so a reload does not bounce them back to the marketing page.
+ */
+function readLandingPreference(): boolean {
+  try {
+    return window.localStorage.getItem(LANDING_VISIT_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function markLandingVisited(): void {
+  try {
+    window.localStorage.setItem(LANDING_VISIT_KEY, '1');
+  } catch {
+    /* ignore */
+  }
+}
+
+export function landingGateFor(user: AuthUser | null): LandingGate {
+  if (user) return 'app';
+  if (readLandingPreference()) return 'demo';
+  return 'landing';
+}
+
 class AuthStore {
   private state: AuthState = resolveAuthState();
   private user: AuthUser | null = getAuthUser();
