@@ -168,7 +168,7 @@ npm run dev               # restart — Vite freezes env values at build time
 npm run maps:check         # "is the key actually arriving?", from the terminal
 ```
 
-A variable set in the host (Vercel → Project Settings → Environment Variables) is picked up the same way — Vite reads `VITE_*` from the build environment as well as from `.env`, and the app reads it as a literal `import.meta.env.VITE_GOOGLE_MAPS_API_KEY` so the value is really baked into the client bundle. Where to check it, in order of convenience:
+A variable set in the host (Vercel → Project Settings → Environment Variables) is picked up two ways. Vite still inlines `VITE_*` at build time when the build can see it (including `GOOGLE_MAPS_API_KEY` without the prefix, which the Vite config forwards). The website also requests `/api/maps-config` on each load and uses that response over a stale baked-in value, so a key saved in the dashboard — including one Vercel only injects at runtime — shows up on the next page load without another build. Where to check it, in order of convenience:
 
 | Where | What you get |
 | --- | --- |

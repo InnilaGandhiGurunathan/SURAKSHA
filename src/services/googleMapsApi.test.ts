@@ -10,7 +10,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { GOOGLE_MAPS_KEY_VAR, SESSION_KEY_SLOT } from '@/config/googleMaps';
+import { GOOGLE_MAPS_KEY_VAR, SESSION_KEY_SLOT, clearRuntimeMapsConfig } from '@/config/googleMaps';
 import {
   GoogleMapsError,
   createGoogleMapsDebugApi,
@@ -73,6 +73,7 @@ beforeEach(() => {
   for (const name of [GOOGLE_MAPS_KEY_VAR, 'VITE_GOOGLE_MAPS_KEY', 'VITE_GOOGLE_MAPS_KEY_ID']) delete env[name];
   window.sessionStorage.clear();
   delete googleWindow.__SURAKSHA_GOOGLE_MAPS_KEY__;
+  clearRuntimeMapsConfig();
 });
 
 afterEach(() => {

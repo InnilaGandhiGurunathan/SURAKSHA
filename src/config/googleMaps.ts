@@ -4,19 +4,24 @@
  * Where the key comes from, in the order the app actually looks:
  *
  *   1. `window.__SURAKSHA_GOOGLE_MAPS_KEY__`  — set at runtime by the host
- *      page (Vercel preview, a harness, the debug panel). Wins, so a live demo
- *      can be fixed without a rebuild.
+ *      page (a harness, an injected script). Wins, so a live demo can be
+ *      fixed without a rebuild.
  *   2. `sessionStorage['suraksha.maps.key']`  — pasted into the in-app debug
  *      panel. Deliberately *session* and not *local* storage: an API key must
- *     not outlive the tab in a shared browser, and it also means SURAKSHA's
+ *      not outlive the tab in a shared browser, and it also means SURAKSHA's
  *      state snapshot never carries a secret.
- *   3. `import.meta.env.VITE_GOOGLE_MAPS_API_KEY` — the normal, committed path.
+ *   3. The host runtime config (`/api/maps-config`) — what Vercel has *now*.
+ *      Vite only inlines env at build time, so a variable saved in the Vercel
+ *      dashboard after the last build (or one Vercel only injects at runtime)
+ *      would otherwise never show up on the website. This slot is that value.
+ *   4. `import.meta.env.VITE_GOOGLE_MAPS_API_KEY` — baked in at build time.
  *
  * Nothing here throws and nothing logs a full key. `maskKey()` is the only
  * function allowed to produce a printable representation.
  */
 
 import { readEnvVar } from './env';
+import { normalizeMapsCredential } from './mapsHostEnv';
 
 /** The variable the README tells you to set. */
 export const GOOGLE_MAPS_KEY_VAR = 'VITE_GOOGLE_MAPS_API_KEY';
@@ -38,7 +43,7 @@ export const SESSION_ID_SLOT = 'suraksha.maps.mapId';
 export const WINDOW_KEY_GLOBAL = '__SURAKSHA_GOOGLE_MAPS_KEY__';
 export const WINDOW_MAP_ID_GLOBAL = '__SURAKSHA_GOOGLE_MAPS_MAP_ID__';
 
-export type KeySource = 'window' | 'session' | 'env' | null;
+export type KeySource = 'window' | 'session' | 'runtime' | 'env' | null;
 
 export interface KeyResolution {
   /** The key, trimmed. `null` when nothing usable was found. */
@@ -90,6 +95,38 @@ function readWindowGlobalKey(): string | null {
   return readWindowGlobalValue(WINDOW_KEY_GLOBAL);
 }
 
+/**
+ * Key delivered by `/api/maps-config` after boot. Held in the module, not on
+ * `window`, so a host-page override and a pasted session key keep their place
+ * above it.
+ */
+let runtimeKey: string | null = null;
+let runtimeMapId: string | null = null;
+let runtimeEnvName: string | null = null;
+
+export function setRuntimeMapsConfig(next: {
+  key: string | null;
+  mapId: string | null;
+  envName: string | null;
+  mapIdEnvName: string | null;
+}): void {
+  if (next.key) {
+    runtimeKey = next.key;
+    runtimeEnvName = next.envName;
+  }
+  if (next.mapId) runtimeMapId = next.mapId;
+}
+
+export function clearRuntimeMapsConfig(): void {
+  runtimeKey = null;
+  runtimeMapId = null;
+  runtimeEnvName = null;
+}
+
+function usableCredential(raw: string | null | undefined): string | null {
+  return normalizeMapsCredential(raw);
+}
+
 export function resolveSessionValue(slot: string): string | null {
   const storage = sessionStorageSafe();
   if (!storage) return null;
@@ -114,55 +151,61 @@ export function writeSessionValue(slot: string, value: string | null): boolean {
 }
 
 export function resolveGoogleMapsKey(): KeyResolution {
+  const lookedFor = [...GOOGLE_MAPS_KEY_VARS];
+
   const fromWindow = readWindowGlobalKey();
-  if (fromWindow) {
-    return {
-      value: fromWindow.trim(),
-      raw: fromWindow,
-      source: 'window',
-      envName: null,
-      lookedFor: [...GOOGLE_MAPS_KEY_VARS],
-    };
+  const windowValue = fromWindow ? usableCredential(fromWindow) : null;
+  if (fromWindow && windowValue) {
+    return { value: windowValue, raw: fromWindow, source: 'window', envName: null, lookedFor };
   }
 
   const fromSession = resolveSessionValue(SESSION_KEY_SLOT);
-  if (fromSession) {
+  const sessionValue = fromSession ? usableCredential(fromSession) : null;
+  if (fromSession && sessionValue) {
+    return { value: sessionValue, raw: fromSession, source: 'session', envName: null, lookedFor };
+  }
+
+  // The live host value beats a key frozen into an older bundle.
+  if (runtimeKey) {
     return {
-      value: fromSession.trim(),
-      raw: fromSession,
-      source: 'session',
-      envName: null,
-      lookedFor: [...GOOGLE_MAPS_KEY_VARS],
+      value: runtimeKey,
+      raw: runtimeKey,
+      source: 'runtime',
+      envName: runtimeEnvName,
+      lookedFor,
     };
   }
 
-  const lookedFor: string[] = [];
+  const found: string[] = [];
   for (const name of GOOGLE_MAPS_KEY_VARS) {
     const readout = readEnvVar(name);
-    lookedFor.push(name);
-    if (readout.value && readout.value.trim().length > 0) {
+    found.push(name);
+    const value = usableCredential(readout.value);
+    if (readout.value && value) {
       return {
-        value: readout.value.trim(),
+        value,
         raw: readout.value,
         source: 'env',
         envName: name,
-        lookedFor,
+        lookedFor: found,
       };
     }
   }
 
-  return { value: null, raw: null, source: null, envName: null, lookedFor };
+  return { value: null, raw: null, source: null, envName: null, lookedFor: found };
 }
 
 /** Optional Map ID; `null` is fine, the raster basemap does not require one. */
 export function resolveGoogleMapsId(): string | null {
   const fromWindow = readWindowGlobalValue(WINDOW_MAP_ID_GLOBAL);
-  if (fromWindow) return fromWindow.trim();
+  if (fromWindow) return usableCredential(fromWindow);
   const fromSession = resolveSessionValue(SESSION_ID_SLOT);
-  if (fromSession) return fromSession.trim();
+  if (fromSession) return usableCredential(fromSession);
+  if (runtimeMapId) return runtimeMapId;
   for (const name of GOOGLE_MAPS_ID_VARS) {
     const readout = readEnvVar(name);
-    if (readout.value && readout.value.trim().length > 0) return readout.value.trim();
+    const value = usableCredential(readout.value);
+    if (value) return value;
   }
   return null;
 }
@@ -223,7 +266,7 @@ export function inspectGoogleMapsKey(resolution: KeyResolution = resolveGoogleMa
     };
   }
 
-  if (raw !== key) {
+  if (raw && raw.trim() !== raw) {
     warnings.push('The value has leading/trailing whitespace. Quote it in .env: VITE_GOOGLE_MAPS_API_KEY="…"');
   }
   if (/\s/.test(key)) {
@@ -268,6 +311,8 @@ export function describeSource(resolution: KeyResolution): string {
       return `window.${WINDOW_KEY_GLOBAL}`;
     case 'session':
       return `sessionStorage["${SESSION_KEY_SLOT}"]`;
+    case 'runtime':
+      return resolution.envName ? `Vercel runtime (${resolution.envName})` : 'Vercel runtime (/api/maps-config)';
     case 'env':
       return resolution.envName ?? 'import.meta.env';
     default:
@@ -287,12 +332,14 @@ export function buildFixSteps(resolution: KeyResolution): string[] {
   }
   steps.push(`Create .env in the repo root with ${GOOGLE_MAPS_KEY_VAR}="<your key>" (the VITE_ prefix is mandatory).`);
   if (envVars.length === GOOGLE_MAPS_KEY_VARS.length) {
-    steps.push('A name without the VITE_ prefix is invisible to browser code — `GOOGLE_MAPS_API_KEY` alone will never reach the client.');
+    steps.push(
+      'A name without the VITE_ prefix is invisible to the Vite bundle. The website also reads /api/maps-config, which accepts GOOGLE_MAPS_API_KEY — VITE_GOOGLE_MAPS_API_KEY is still the name to set.',
+    );
   }
   steps.push('Restart the dev server (`npm run dev`) — Vite bakes env values in at build time, hot reload will not pick them up.');
   steps.push('In Google Cloud, enable "Maps JavaScript API" for the project and allow the origin you are viewing from.');
   steps.push(
-    'Deployed preview? Set the same variable in the host (Vercel → Project Settings → Environment Variables) and trigger a new build — the value is compiled in, so redeploying the old artifact changes nothing.',
+    'Deployed on Vercel? The site reads the key live from /api/maps-config (Project Settings → Environment Variables). Saving VITE_GOOGLE_MAPS_API_KEY — or GOOGLE_MAPS_API_KEY — is enough; the next page load picks it up even when the last Vite build did not inline it.',
   );
   steps.push('Re-check with `npm run maps:check` or by opening the map again — the badge turns green when the key arrives.');
   return steps;

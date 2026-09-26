@@ -8,6 +8,7 @@ import {
   printGoogleMapsBanner,
 } from './services/googleMapsApi';
 import { readBasemapPreference, setBasemapPreference } from './services/basemapPreference';
+import { hydrateRuntimeMapsConfig, RUNTIME_MAPS_CONFIG_WAIT_MS } from './config/runtimeMapsConfig';
 import './index.css';
 
 /*
@@ -16,13 +17,37 @@ import './index.css';
  * `surakshaMaps.help()`. Keeping this at the entry point (and out of the
  * component tree) means it works on every screen, including a blank one.
  */
-installGoogleMapsDebug(
-  createGoogleMapsDebugApi({
-    setBasemap: setBasemapPreference,
-    readBasemap: readBasemapPreference,
-  }),
-);
-printGoogleMapsBanner();
+const rootEl = document.getElementById('root');
+if (rootEl && rootEl.childElementCount === 0) {
+  rootEl.textContent = 'Starting SURAKSHA…';
+}
+
+/*
+ * The Maps key Vercel has *right now* is not the key Vite may have frozen into
+ * this bundle. Wait briefly for /api/maps-config (already in flight from
+ * index.html) so the first paint reflects the dashboard value. A slow or
+ * missing endpoint must not blank the app — the request keeps running and the
+ * map upgrades when it lands.
+ */
+const mapsConfigReady = hydrateRuntimeMapsConfig();
+void Promise.race([
+  mapsConfigReady,
+  new Promise((resolve) => window.setTimeout(resolve, RUNTIME_MAPS_CONFIG_WAIT_MS)),
+]).finally(() => {
+  installGoogleMapsDebug(
+    createGoogleMapsDebugApi({
+      setBasemap: setBasemapPreference,
+      readBasemap: readBasemapPreference,
+    }),
+  );
+  printGoogleMapsBanner();
+
+  ReactDOM.createRoot(document.getElementById('root')!).render(
+    <React.StrictMode>
+      <App />
+    </React.StrictMode>,
+  );
+});
 
 /*
  * The simulation runs on a virtual clock, so the newest check-in or incident
@@ -36,8 +61,4 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') flush();
 });
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
-);
+

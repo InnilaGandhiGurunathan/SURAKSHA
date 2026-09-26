@@ -60,6 +60,10 @@ export function useGoogleMapsLoader(active: boolean): {
   const [api, setApi] = useState<GoogleMapsApi | null>(null);
   const [attempt, setAttempt] = useState(0);
 
+  // Source + mask, not just `configured`: a key that arrives from Vercel after
+  // the first paint (or replaces a stale baked-in value) has to start a load.
+  const keySignature = `${status.resolution.source ?? ''}:${status.keyLength}:${status.keyMasked}`;
+
   useEffect(() => {
     if (!active || !status.configured) return;
     // Always routed through the loader, even when the script is already on the
@@ -77,7 +81,7 @@ export function useGoogleMapsLoader(active: boolean): {
     return () => {
       cancelled = true;
     };
-  }, [active, status.configured, attempt]);
+  }, [active, status.configured, keySignature, attempt]);
 
   const retry = useCallback(() => {
     setApi(null);

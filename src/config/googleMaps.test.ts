@@ -13,9 +13,11 @@ import {
   SESSION_KEY_SLOT,
   WINDOW_KEY_GLOBAL,
   buildFixSteps,
+  clearRuntimeMapsConfig,
   inspectGoogleMapsKey,
   maskKey,
   resolveGoogleMapsKey,
+  setRuntimeMapsConfig,
 } from './googleMaps';
 
 /**
@@ -37,6 +39,7 @@ function clearEverything() {
   Object.assign(env, pristine);
   window.sessionStorage.clear();
   delete (window as unknown as Record<string, unknown>)[WINDOW_KEY_GLOBAL];
+  clearRuntimeMapsConfig();
 }
 
 afterEach(clearEverything);
@@ -107,6 +110,29 @@ describe('resolving VITE_GOOGLE_MAPS_API_KEY', () => {
     expect(resolution.value).toBe(sessionKey);
     expect(resolution.source).toBe('session');
     expect(inspectGoogleMapsKey(resolution).warnings.join(' ')).toMatch(/session override/i);
+  });
+
+  it('unwraps a key the host stored with wrapping quotes', () => {
+    env[GOOGLE_MAPS_KEY_VAR] = `"${fakeKey()}"`;
+    const resolution = resolveGoogleMapsKey();
+    expect(resolution.value).toBe(fakeKey());
+    expect(inspectGoogleMapsKey(resolution).verdict).toBe('ok');
+    expect(inspectGoogleMapsKey(resolution).warnings.join(' ')).not.toMatch(/whitespace/i);
+  });
+
+  it('a Vercel runtime key beats a stale baked-in value, and a session paste still wins', () => {
+    env[GOOGLE_MAPS_KEY_VAR] = fakeKey('baked');
+    const live = fakeKey('live');
+    setRuntimeMapsConfig({ key: live, mapId: null, envName: 'GOOGLE_MAPS_API_KEY', mapIdEnvName: null });
+
+    const fromHost = resolveGoogleMapsKey();
+    expect(fromHost.value).toBe(live);
+    expect(fromHost.source).toBe('runtime');
+    expect(fromHost.envName).toBe('GOOGLE_MAPS_API_KEY');
+    expect(inspectGoogleMapsKey(fromHost).verdict).toBe('ok');
+
+    window.sessionStorage.setItem(SESSION_KEY_SLOT, fakeKey('sess'));
+    expect(resolveGoogleMapsKey().source).toBe('session');
   });
 
   it('a window global beats everything, because it is the escape hatch', () => {

@@ -22,6 +22,26 @@
   </head>
   <body>
     <div id="root"></div>
+    <!--
+      Start the Maps-key fetch before the bundle downloads. Vite only inlines
+      VITE_* at build time, so a key saved in Vercel after that build (or one
+      Vercel injects only at runtime) is invisible until /api/maps-config returns.
+      The SPA rewrite must not swallow this path — see vercel.json.
+    -->
+    <script>
+      window.__SURAKSHA_MAPS_CONFIG_PROMISE__ = fetch('/api/maps-config', {
+        cache: 'no-store',
+        headers: { accept: 'application/json' },
+      })
+        .then(function (response) {
+          var type = (response.headers.get('content-type') || '').toLowerCase();
+          if (!response.ok || type.indexOf('json') === -1) return null;
+          return response.json();
+        })
+        .catch(function () {
+          return null;
+        });
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
