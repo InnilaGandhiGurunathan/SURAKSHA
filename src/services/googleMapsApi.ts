@@ -183,6 +183,11 @@ export function readConfigRevision(): number {
   return configRevision;
 }
 
+/** Call after a runtime key arrives so every subscriber re-reads the status. */
+export function notifyGoogleMapsConfigChanged(): void {
+  emit();
+}
+
 export function getLoaderSnapshot(keyMasked = '—'): LoaderSnapshot {
   return { state, error, attempted, authFailure, keyMasked, durationMs };
 }

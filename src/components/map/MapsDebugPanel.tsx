@@ -122,6 +122,21 @@ export function MapSourceChip({ className, long = true }: { className?: string; 
 /* Panel                                                               */
 /* ------------------------------------------------------------------ */
 
+function describeFoundIn(status: GoogleMapsStatus): string {
+  switch (status.resolution.source) {
+    case 'env':
+      return `.env → ${status.envName ?? GOOGLE_MAPS_KEY_VAR}`;
+    case 'session':
+      return 'this tab (sessionStorage)';
+    case 'window':
+      return 'window global';
+    case 'runtime':
+      return `Vercel runtime → ${status.envName ?? 'host environment'}`;
+    default:
+      return `looked for ${status.resolution.lookedFor.join(', ')}`;
+  }
+}
+
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 py-1.5">
@@ -214,15 +229,7 @@ export function GoogleMapsDebugPanel({ compact = false }: { compact?: boolean })
             <span className="font-semibold text-watch-800">not set</span>
           )}
         </Row>
-        <Row label="found in">
-          {status.resolution.source === 'env'
-            ? `.env → ${status.envName ?? GOOGLE_MAPS_KEY_VAR}`
-            : status.resolution.source === 'session'
-              ? 'this tab (sessionStorage)'
-              : status.resolution.source === 'window'
-                ? 'window global'
-                : `looked for ${status.resolution.lookedFor.join(', ')}`}
-        </Row>
+        <Row label="found in">{describeFoundIn(status)}</Row>
         <Row label="shape">
           {status.configured
             ? `${status.keyLength} chars · ${status.inspection.looksLikeGoogleKey ? "starts with 'AIza'" : 'unexpected prefix'}`
